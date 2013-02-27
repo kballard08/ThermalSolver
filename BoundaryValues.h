@@ -11,6 +11,7 @@
 #include <deal.II/base/function.h>
 #include <deal.II/base/exceptions.h>
 #include <vector>
+#include <iostream>
 
 #include "BoundaryCondition.h"
 
@@ -48,6 +49,12 @@ template <int dim>
 inline
 double BoundaryValues<dim>::value (const Point<dim> &p, const unsigned int /*component*/) const
 {
+	// Ouput the point for debugging
+	std::cout << "Finding Point (";
+	for (int j = 0; j < dim; j++)
+		std::cout << p(j) << " ";
+	std::cout << ")" << std::endl;
+
 	// Loop through the boundary conditions and fine the one that contains the point
 	for(unsigned int i = 0; i < boundary_conditions.size(); i++)
 	{

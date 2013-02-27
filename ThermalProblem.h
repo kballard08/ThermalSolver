@@ -95,20 +95,25 @@ void ThermalProblem<dim>::make_grid()
 	triangulation.refine_global(4);
 
 	// Create boundary conditions
-	Point<dim> p1(true), p2(true);
+	Point<dim> p1(true), p2(true), p3(true);
 	if (dim == 2) {
 		p1(0) = -1;
 		p1(1) = -1;
-		p2(0) = 1;
+		p2(0) = 0;
 		p2(1) = 1;
+		p3(0) = 1;
+		p3(1) = -1;
 	}
 	else if (dim ==3) {
 		p1(0) = -1;
 		p1(1) = -1;
 		p1(2) = -1;
-		p2(0) = 1;
+		p2(0) = 0;
 		p2(1) = 1;
 		p2(2) = 1;
+		p3(0) = 1;
+		p3(1) = -1;
+		p3(2) = -1;
 	}
 	else {
 		Assert(false, ExcNotImplemented())
@@ -116,6 +121,8 @@ void ThermalProblem<dim>::make_grid()
 	// For all boundaries in the rectangular bounds created by p1 and p2,
 	// apply a specified temperature of 100
 	BoundaryCondition<dim> * bc_p = new TemperatureBoundary<dim>(p1, p2, 100);
+	boundary_values.add_boundary_condition(bc_p);
+	bc_p = new TemperatureBoundary<dim>(p2, p3, 10);
 	boundary_values.add_boundary_condition(bc_p);
 }
 
