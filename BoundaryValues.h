@@ -12,6 +12,8 @@
 #include <deal.II/base/exceptions.h>
 #include <vector>
 
+#include "BoundaryCondition.h"
+
 using namespace dealii;
 
 template <int dim>
@@ -19,7 +21,7 @@ class BoundaryValues : public Function<dim>
 {
 public:
 	BoundaryValues() {};
-	virtual ~BoundaryValues() {};
+	virtual ~BoundaryValues();
 
 	void add_boundary_condition(BoundaryCondition<dim> * bc_p) { boundary_conditions.push_back(bc_p); };
 
@@ -28,7 +30,7 @@ public:
 
 private:
 	// Stores pointers to the boundary conditions
-	std::vector< * BoundaryCondition<dim> > boundary_conditions;
+	std::vector< BoundaryCondition<dim> * > boundary_conditions;
 };
 
 // Destructor
@@ -37,7 +39,7 @@ inline
 BoundaryValues<dim>::~BoundaryValues()
 {
 	// Clean up the vector of pointers
-	for(int i = 0; i < boundary_conditions.size(); i++)
+	for(unsigned int i = 0; i < boundary_conditions.size(); i++)
 		delete boundary_conditions[i];
 }
 
@@ -47,11 +49,10 @@ inline
 double BoundaryValues<dim>::value (const Point<dim> &p, const unsigned int /*component*/) const
 {
 	// Loop through the boundary conditions and fine the one that contains the point
-	bool point_found = false;
-	for(int i = 0; i < boundary_conditions.size(); i++)
+	for(unsigned int i = 0; i < boundary_conditions.size(); i++)
 	{
-		if (boundary_conditions[i].point_in_boundary(p))
-			return boundary_conditions[i].value();
+		if (boundary_conditions[i]->point_in_boundary(p))
+			return boundary_conditions[i]->value(p);
 	}
 
 	Assert(false, ExcMessage("A boundary point was not found in the boundary conditions."))

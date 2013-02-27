@@ -33,6 +33,8 @@
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/data_out.h>
 
+#include "BoundaryValues.h"
+
 using namespace dealii;
 
 template <int dim>
@@ -40,7 +42,7 @@ class ThermalProblem
 {
 
 public:
-	ThermalProblem ();
+	ThermalProblem () {};
 	void run ();
 
 private:

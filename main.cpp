@@ -15,7 +15,7 @@ int main ()
 
 		deallog.depth_console (0);
 
-		ThermalProblem<2> thermal_problem();
+		ThermalProblem<2> thermal_problem;
 		thermal_problem.run();
 	}
 	catch (std::exception &exc)

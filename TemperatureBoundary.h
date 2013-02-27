@@ -11,7 +11,7 @@
 #include "BoundaryCondition.h"
 
 template<int dim>
-class TemperatureBoundary : public BoundaryCondition
+class TemperatureBoundary : public BoundaryCondition<dim>
 {
 public:
 	// Constructor

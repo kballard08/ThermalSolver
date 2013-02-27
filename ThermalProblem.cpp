@@ -37,7 +37,7 @@ void ThermalProblem<dim>::make_grid()
 	Point<dim> p2(1);
 	// For all boundaries in the rectangular bounds created by p1 and p2,
 	// apply a specified temperature of 100
-	BoundaryCondition<dim> * bc_p = new TemperatureBoundary(p1, p2, 100);
+	BoundaryCondition<dim> * bc_p = new TemperatureBoundary<dim>(p1, p2, 100);
 	boundary_values.add_boundary_condition(bc_p);
 }
 
