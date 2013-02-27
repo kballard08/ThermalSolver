@@ -216,54 +216,6 @@ CMakeFiles/2.8.10.2/CompilerIdCXX/CMakeCXXCompilerId.cpp.s:
 	$(MAKE) -f CMakeFiles/ThermalSolver.dir/build.make CMakeFiles/ThermalSolver.dir/CMakeFiles/2.8.10.2/CompilerIdCXX/CMakeCXXCompilerId.cpp.s
 .PHONY : CMakeFiles/2.8.10.2/CompilerIdCXX/CMakeCXXCompilerId.cpp.s
 
-TemperatureBoundary.o: TemperatureBoundary.cpp.o
-.PHONY : TemperatureBoundary.o
-
-# target to build an object file
-TemperatureBoundary.cpp.o:
-	$(MAKE) -f CMakeFiles/ThermalSolver.dir/build.make CMakeFiles/ThermalSolver.dir/TemperatureBoundary.cpp.o
-.PHONY : TemperatureBoundary.cpp.o
-
-TemperatureBoundary.i: TemperatureBoundary.cpp.i
-.PHONY : TemperatureBoundary.i
-
-# target to preprocess a source file
-TemperatureBoundary.cpp.i:
-	$(MAKE) -f CMakeFiles/ThermalSolver.dir/build.make CMakeFiles/ThermalSolver.dir/TemperatureBoundary.cpp.i
-.PHONY : TemperatureBoundary.cpp.i
-
-TemperatureBoundary.s: TemperatureBoundary.cpp.s
-.PHONY : TemperatureBoundary.s
-
-# target to generate assembly for a file
-TemperatureBoundary.cpp.s:
-	$(MAKE) -f CMakeFiles/ThermalSolver.dir/build.make CMakeFiles/ThermalSolver.dir/TemperatureBoundary.cpp.s
-.PHONY : TemperatureBoundary.cpp.s
-
-ThermalProblem.o: ThermalProblem.cpp.o
-.PHONY : ThermalProblem.o
-
-# target to build an object file
-ThermalProblem.cpp.o:
-	$(MAKE) -f CMakeFiles/ThermalSolver.dir/build.make CMakeFiles/ThermalSolver.dir/ThermalProblem.cpp.o
-.PHONY : ThermalProblem.cpp.o
-
-ThermalProblem.i: ThermalProblem.cpp.i
-.PHONY : ThermalProblem.i
-
-# target to preprocess a source file
-ThermalProblem.cpp.i:
-	$(MAKE) -f CMakeFiles/ThermalSolver.dir/build.make CMakeFiles/ThermalSolver.dir/ThermalProblem.cpp.i
-.PHONY : ThermalProblem.cpp.i
-
-ThermalProblem.s: ThermalProblem.cpp.s
-.PHONY : ThermalProblem.s
-
-# target to generate assembly for a file
-ThermalProblem.cpp.s:
-	$(MAKE) -f CMakeFiles/ThermalSolver.dir/build.make CMakeFiles/ThermalSolver.dir/ThermalProblem.cpp.s
-.PHONY : ThermalProblem.cpp.s
-
 main.o: main.cpp.o
 .PHONY : main.o
 
@@ -306,12 +258,6 @@ help:
 	@echo "... CMakeFiles/2.8.10.2/CompilerIdCXX/CMakeCXXCompilerId.o"
 	@echo "... CMakeFiles/2.8.10.2/CompilerIdCXX/CMakeCXXCompilerId.i"
 	@echo "... CMakeFiles/2.8.10.2/CompilerIdCXX/CMakeCXXCompilerId.s"
-	@echo "... TemperatureBoundary.o"
-	@echo "... TemperatureBoundary.i"
-	@echo "... TemperatureBoundary.s"
-	@echo "... ThermalProblem.o"
-	@echo "... ThermalProblem.i"
-	@echo "... ThermalProblem.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

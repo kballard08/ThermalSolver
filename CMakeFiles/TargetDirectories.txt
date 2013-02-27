@@ -1,7 +1,0 @@
-/home/kballard/workspace/ThermalSolver/CMakeFiles/ThermalSolver.dir
-/home/kballard/workspace/ThermalSolver/CMakeFiles/debug.dir
-/home/kballard/workspace/ThermalSolver/CMakeFiles/distclean.dir
-/home/kballard/workspace/ThermalSolver/CMakeFiles/release.dir
-/home/kballard/workspace/ThermalSolver/CMakeFiles/run.dir
-/home/kballard/workspace/ThermalSolver/CMakeFiles/runclean.dir
-/home/kballard/workspace/ThermalSolver/CMakeFiles/strip_comments.dir
