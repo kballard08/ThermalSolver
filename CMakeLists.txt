@@ -6,8 +6,10 @@
 SET(TARGET "ThermalSolver")
 
 # Declare all source files the target consists of:
-file(GLOB_RECURSE TARGET_SRC "*.cpp")
-file(GLOB_RECURSE TARGET_HEADERS "*.h")
+SET(TARGET_SRC
+  main.cpp
+  # You can specify additional files here!
+  )
 
 # Usually, you will not need to modify anything beyond this point...
 

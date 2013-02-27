@@ -97,18 +97,18 @@ void ThermalProblem<dim>::make_grid()
 	// Create boundary conditions
 	Point<dim> p1(true), p2(true);
 	if (dim == 2) {
+		p1(0) = -1;
 		p1(1) = -1;
-		p1(2) = -1;
+		p2(0) = 1;
 		p2(1) = 1;
-		p2(2) = 1;
 	}
 	else if (dim ==3) {
+		p1(0) = -1;
 		p1(1) = -1;
 		p1(2) = -1;
-		p1(3) = -1;
+		p2(0) = 1;
 		p2(1) = 1;
 		p2(2) = 1;
-		p2(3) = 1;
 	}
 	else {
 		Assert(false, ExcNotImplemented())
