@@ -1,0 +1,11 @@
+# Extensions to ignore
+*.o
+*.*~
+
+# Directories to ignore
+CMakeFiles/Progress/*
+CMakeFiles/ThermalSolver.dir/*
+
+# Files to ignore
+cmake_install.cmake
+CMakeCache.txt
