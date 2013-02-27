@@ -3,9 +3,9 @@
 *.*~
 
 # Directories to ignore
-CMakeFiles/Progress/*
-CMakeFiles/ThermalSolver.dir/*
+CMakeFiles/
 
 # Files to ignore
 cmake_install.cmake
 CMakeCache.txt
+Makefile
