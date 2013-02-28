@@ -6,16 +6,29 @@
  */
 
 #include "ThermalProblem.h"
+#include "ScriptReader.h"
 
 int main ()
 {
+	// TODO: delete this comment block.  This was simply for testing the ScriptReader
+	/*
+	ThermalSolverNS::ScriptReader sr("script_test.txt");
+	std::vector<std::string> tokens;
+	int lineNum = 0;
+	while(sr.get_next_line(tokens)) {
+		std::cout << "Line: " << lineNum++ << std::endl;
+		for (unsigned int i = 0; i < tokens.size(); i++)
+			std::cout << tokens[i] << std::endl;
+	}
+	*/
+
 	try
 	{
 		using namespace dealii;
 
 		deallog.depth_console (0);
 
-		ThermalProblem<2> thermal_problem;
+		ThermalSolverNS::ThermalProblem<2> thermal_problem;
 		thermal_problem.run();
 	}
 	catch (std::exception &exc)

@@ -10,6 +10,9 @@
 
 #include <deal.II/base/point.h>
 
+namespace ThermalSolverNS
+{
+
 using namespace dealii;
 
 // The BoundaryCondition class is meant to describe a boundary condition for the problem.  It is an abstract class and the inherited classes
@@ -35,5 +38,6 @@ public:
 	virtual double	value(const Point<dim> &p) = 0;
 };
 
+}
 
 #endif /* BOUNDARYCONDITION_H_ */

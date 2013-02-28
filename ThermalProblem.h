@@ -40,6 +40,9 @@
 #include "BoundaryCondition.h"
 #include "TemperatureBoundary.h"
 
+namespace ThermalSolverNS
+{
+
 using namespace dealii;
 
 template <int dim>
@@ -248,5 +251,6 @@ void ThermalProblem<dim>::output_results() const
 	data_out.write_vtk (output);
 }
 
+}
 
 #endif /* THERMALPROBLEM_H_ */

@@ -10,6 +10,9 @@
 
 #include "BoundaryCondition.h"
 
+namespace ThermalSolverNS
+{
+
 template<int dim>
 class TemperatureBoundary : public BoundaryCondition<dim>
 {
@@ -54,6 +57,8 @@ double TemperatureBoundary<dim>::value(const Point<dim> &p)
 	// In the future this could vary with location
 	// or time (in transient problems)
 	return Temp0;
+}
+
 }
 
 #endif /* TEMPERATUREBOUNDARY_H_ */

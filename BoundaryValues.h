@@ -15,6 +15,9 @@
 
 #include "BoundaryCondition.h"
 
+namespace ThermalSolverNS
+{
+
 using namespace dealii;
 
 template <int dim>
@@ -66,6 +69,8 @@ double BoundaryValues<dim>::value (const Point<dim> &p, const unsigned int /*com
 
 	// Return 0 so the compiler will be happy that every path has a return value, but this will never be reached.
 	return 0;
+}
+
 }
 
 #endif /* BOUNDARYVALUES_H_ */
