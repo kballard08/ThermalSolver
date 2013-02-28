@@ -8,7 +8,7 @@
 #include "ThermalProblem.h"
 #include "ScriptReader.h"
 
-int main ()
+int main (int argc, char* argv[])
 {
 	// TODO: delete this comment block.  This was simply for testing the ScriptReader
 	/*
@@ -29,7 +29,11 @@ int main ()
 		deallog.depth_console (0);
 
 		ThermalSolverNS::ThermalProblem<2> thermal_problem;
-		thermal_problem.run();
+
+		if (argc ==1)
+			thermal_problem.run();
+		else
+			thermal_problem.run(); // change to use script
 	}
 	catch (std::exception &exc)
 	{

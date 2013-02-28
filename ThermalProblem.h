@@ -107,7 +107,7 @@ void ThermalProblem<dim>::make_grid()
 		p3(0) = 1;
 		p3(1) = -1;
 	}
-	else if (dim ==3) {
+	else if (dim == 3) {
 		p1(0) = -1;
 		p1(1) = -1;
 		p1(2) = -1;
