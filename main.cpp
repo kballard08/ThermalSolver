@@ -44,9 +44,18 @@ int main (int argc, char* argv[])
 			if (tokens[0] == "SetDim") {
 				Assert(tokens.size() == 2, dealii::ExcMessage("The command SetDim in the input script has the wrong ammound of arguments."))
 
-				int dim = atoi(tokens[1].c_str());
-				ThermalSolverNS::ThermalProblem<dim> thermal_problem;
-				thermal_problem.run(sr); // change to use script
+				if (tokens[1] == "2") {
+					ThermalSolverNS::ThermalProblem<2> thermal_problem;
+					thermal_problem.run(sr); // change to use script
+				}
+				else if (tokens[1] == "3") {
+					ThermalSolverNS::ThermalProblem<3> thermal_problem;
+					thermal_problem.run(sr); // change to use script
+				}
+				else {
+					Assert(false, ExcNotImplemented())
+				}
+
 			}
 			else {
 				std::cout << "The command SetDim must be the first command in the input script." << std::endl;

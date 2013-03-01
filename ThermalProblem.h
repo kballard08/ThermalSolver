@@ -41,6 +41,7 @@
 #include "BoundaryValues.h"
 #include "BoundaryCondition.h"
 #include "TemperatureBoundary.h"
+#include "ScriptReader.h"
 
 namespace ThermalSolverNS
 {
@@ -109,7 +110,8 @@ void ThermalProblem<dim>::run(ScriptReader &script_reader)
 		std::cout << std::endl;
 
 		// TODO: make a more efficient process command structure
-		if (token[0] == "UseDefault")
+		if (tokens[0] == "UseDefault")
+			make_grid_test();
 	}
 
 	setup_system ();
