@@ -34,6 +34,7 @@
 #include <deal.II/numerics/data_out.h>
 
 #include <fstream>
+#include <string>
 
 #include "RightHandSide.h"
 #include "BoundaryValues.h"
@@ -53,14 +54,17 @@ public:
 	ThermalProblem () : fe(1), dof_handler(triangulation) {};
 	~ThermalProblem() {};
 
-	void run ();
+	void run_test ();
+	void run (std::string scriptPath);
 
 private:
-	void make_grid ();
+	void make_grid_test ();
 	void setup_system();
 	void assemble_system ();
 	void solve ();
 	void output_results () const;
+
+	ScriptReader sr;
 
 	Triangulation<dim>   triangulation;
 	FE_Q<dim>            fe;
@@ -77,11 +81,24 @@ private:
 
 // Public method: run
 template<int dim>
-void ThermalProblem<dim>::run()
+void ThermalProblem<dim>::run_test()
+{
+	std::cout << "Solving test problem in " << dim << " space dimensions." << std::endl;
+
+	make_grid_test();
+	setup_system ();
+	assemble_system ();
+	solve ();
+	output_results ();
+}
+
+// Public method: run (reads script)
+template<int dim>
+void ThermalProblem<dim>::run(std::string scriptPath)
 {
 	std::cout << "Solving problem in " << dim << " space dimensions." << std::endl;
+	sr.open(scriptPath);
 
-	make_grid();
 	setup_system ();
 	assemble_system ();
 	solve ();
@@ -90,7 +107,7 @@ void ThermalProblem<dim>::run()
 
 // Private method: make_grid
 template<int dim>
-void ThermalProblem<dim>::make_grid()
+void ThermalProblem<dim>::make_grid_test()
 {
 	// For now just generate cube
 	// Later include functionality to read in a mesh file?
@@ -100,27 +117,19 @@ void ThermalProblem<dim>::make_grid()
 	// Create boundary conditions
 	Point<dim> p1(true), p2(true), p3(true);
 	if (dim == 2) {
-		p1(0) = -1;
-		p1(1) = -1;
-		p2(0) = 0;
-		p2(1) = 1;
-		p3(0) = 1;
-		p3(1) = -1;
+		p1(0) = -1;	p1(1) = -1;	// (-1, -1)
+		p2(0) = 0;	p2(1) = 1;	// (0, 1)
+		p3(0) = 1;	p3(1) = -1;	// (1, -1)
 	}
 	else if (dim == 3) {
-		p1(0) = -1;
-		p1(1) = -1;
-		p1(2) = -1;
-		p2(0) = 0;
-		p2(1) = 1;
-		p2(2) = 1;
-		p3(0) = 1;
-		p3(1) = -1;
-		p3(2) = -1;
+		p1(0) = -1;	p1(1) = -1;	p1(2) = -1;	// (-1, -1, -1)
+		p2(0) = 0;	p2(1) = 1;	p2(2) = 1;	// (0, 1, 1)
+		p3(0) = 1;	p3(1) = -1;	p3(2) = -1;	// (1, -1, -1)
 	}
 	else {
 		Assert(false, ExcNotImplemented())
 	}
+
 	// For all boundaries in the rectangular bounds created by p1 and p2,
 	// apply a specified temperature of 100
 	BoundaryCondition<dim> * bc_p = new TemperatureBoundary<dim>(p1, p2, 100);

@@ -30,10 +30,17 @@ int main (int argc, char* argv[])
 
 		ThermalSolverNS::ThermalProblem<2> thermal_problem;
 
-		if (argc ==1)
-			thermal_problem.run();
-		else
-			thermal_problem.run(); // change to use script
+		if (argc == 1) {
+			thermal_problem.run_test();
+		}
+		else if (argc == 2) {
+			thermal_problem.run(argv[1]); // change to use script
+		}
+		else {
+			std::cout << "Usage: " << argv[0] << " [optional] script_file_path" << std::endl;
+			std::cout << "\tIf no script file path is provided, then the program will run a simple test." << std::endl;
+			return 0;
+		}
 	}
 	catch (std::exception &exc)
 	{

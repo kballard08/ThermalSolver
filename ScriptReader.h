@@ -28,6 +28,8 @@ public:
 	ScriptReader(std::string filePath);
 	~ScriptReader();
 
+	void open(std::string filePath);
+
 	// Return file indicates if the read was valid,
 	// false will be returned if the eof was reached
 	bool get_next_line(std::vector<std::string> &tokens);
@@ -38,16 +40,22 @@ private:
 
 ScriptReader::ScriptReader(std::string filePath)
 {
-	// Assumes file exists, later add check to see if it exists
-	scriptFile.open(filePath.c_str());
-	if (!scriptFile) {
-		Assert(false, ExcMessage("File path passed to ScriptReader does not exist."))
-	}
+	open(filePath);
 }
 
 ScriptReader::~ScriptReader()
 {
 	scriptFile.close();
+}
+
+void ScriptReader::open(std::string filePath)
+{
+	// Assumes file exists, later add check to see if it exists
+	scriptFile.open(filePath.c_str());
+	if (!scriptFile) {
+		Assert(false, ExcMessage("File path passed to ScriptReader does not exist."))
+	}
+	std::cout << "Successfully open script: " << filePath << std::endl;
 }
 
 bool ScriptReader::get_next_line(std::vector<std::string> &tokens)
