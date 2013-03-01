@@ -37,10 +37,10 @@ int main (int argc, char* argv[])
 			thermal_problem.run_test();
 		}
 		else if (argc == 2) {
-			ThermalSolverNS::ScriptReader sr(argv[1]);
+			ThermalSolverNS::ScriptReader* sr = new ThermalSolverNS::ScriptReader(argv[1]);
 
 			std::vector<std::string> tokens;
-			sr.get_next_line(tokens);
+			sr->get_next_line(tokens);
 			if (tokens[0] == "SetDim") {
 				Assert(tokens.size() == 2, dealii::ExcMessage("The command SetDim in the input script has the wrong ammound of arguments."))
 

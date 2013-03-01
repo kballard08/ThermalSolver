@@ -57,7 +57,7 @@ public:
 	~ThermalProblem() {};
 
 	void run_test ();
-	void run (ScriptReader &script_reader);
+	void run (ScriptReader *script_reader);
 
 private:
 	void make_grid_test ();
@@ -66,7 +66,7 @@ private:
 	void solve ();
 	void output_results () const;
 
-	ScriptReader sr;
+	ScriptReader* sr;
 
 	Triangulation<dim>   triangulation;
 	FE_Q<dim>            fe;
@@ -96,14 +96,14 @@ void ThermalProblem<dim>::run_test()
 
 // Public method: run (reads script)
 template<int dim>
-void ThermalProblem<dim>::run(ScriptReader &script_reader)
+void ThermalProblem<dim>::run(ScriptReader *script_reader)
 {
 	std::cout << "Solving problem in " << dim << " space dimensions." << std::endl;
 	sr = script_reader;
 
 	std::vector<std::string> tokens;
 	int lineNum = 0;
-	while(sr.get_next_line(tokens)) {
+	while(sr->get_next_line(tokens)) {
 		std::cout << "Processing line: " << lineNum++;
 		for (unsigned int i = 0; i < tokens.size(); i++)
 			std::cout << " " <<tokens[i];
