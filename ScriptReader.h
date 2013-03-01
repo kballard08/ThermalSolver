@@ -25,6 +25,7 @@ using namespace dealii;
 class ScriptReader
 {
 public:
+	ScriptReader() {};
 	ScriptReader(std::string filePath);
 	~ScriptReader();
 
@@ -60,6 +61,10 @@ void ScriptReader::open(std::string filePath)
 
 bool ScriptReader::get_next_line(std::vector<std::string> &tokens)
 {
+	if (!scriptFile) {
+		Assert(false, ExcMessage("ScriptReader has tried to read the stream before a file has been opened."))
+	}
+
 	bool foundTokens = false;
 	while (!foundTokens) {
 		// Copy the line from the file to a string
