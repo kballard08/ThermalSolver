@@ -5,8 +5,12 @@
  *      Author: kballard
  */
 
+#include <deal.II/base/exceptions.h>
+
 #include "ThermalProblem.h"
 #include "ScriptReader.h"
+
+using namespace dealii;
 
 int main (int argc, char* argv[])
 {
@@ -28,13 +32,26 @@ int main (int argc, char* argv[])
 
 		deallog.depth_console (0);
 
-		ThermalSolverNS::ThermalProblem<2> thermal_problem;
-
 		if (argc == 1) {
+			ThermalSolverNS::ThermalProblem<2> thermal_problem;
 			thermal_problem.run_test();
 		}
 		else if (argc == 2) {
-			thermal_problem.run(argv[1]); // change to use script
+			ThermalSolverNS::ScriptReader sr(argv[1]);
+
+			std::vector<std::string> tokens;
+			sr.get_next_line(tokens);
+			if (tokens[0] == "SetDim") {
+				Assert(tokens.size() == 2, dealii::ExcMessage("The command SetDim in the input script has the wrong ammound of arguments."))
+
+				int dim = atoi(tokens[1].c_str());
+				ThermalSolverNS::ThermalProblem<dim> thermal_problem;
+				thermal_problem.run(sr); // change to use script
+			}
+			else {
+				std::cout << "The command SetDim must be the first command in the input script." << std::endl;
+				return 0;
+			}
 		}
 		else {
 			std::cout << "Usage: " << argv[0] << " [optional] script_file_path" << std::endl;

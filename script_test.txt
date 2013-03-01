@@ -1,5 +1,2 @@
-hello world
-this is a test of tokens
-
-this //is a comment test
-test
+SetDim 2
+UseDefaultMesh

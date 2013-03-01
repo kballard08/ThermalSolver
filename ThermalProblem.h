@@ -10,6 +10,7 @@
 
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/base/logstream.h>
+#include <deal.II/base/exceptions.h>
 #include <deal.II/base/function.h>
 #include <deal.II/lac/block_vector.h>
 #include <deal.II/lac/full_matrix.h>
@@ -55,7 +56,7 @@ public:
 	~ThermalProblem() {};
 
 	void run_test ();
-	void run (std::string scriptPath);
+	void run (ScriptReader &script_reader);
 
 private:
 	void make_grid_test ();
@@ -94,10 +95,22 @@ void ThermalProblem<dim>::run_test()
 
 // Public method: run (reads script)
 template<int dim>
-void ThermalProblem<dim>::run(std::string scriptPath)
+void ThermalProblem<dim>::run(ScriptReader &script_reader)
 {
 	std::cout << "Solving problem in " << dim << " space dimensions." << std::endl;
-	sr.open(scriptPath);
+	sr = script_reader;
+
+	std::vector<std::string> tokens;
+	int lineNum = 0;
+	while(sr.get_next_line(tokens)) {
+		std::cout << "Processing line: " << lineNum++;
+		for (unsigned int i = 0; i < tokens.size(); i++)
+			std::cout << " " <<tokens[i];
+		std::cout << std::endl;
+
+		// TODO: make a more efficient process command structure
+		if (token[0] == "UseDefault")
+	}
 
 	setup_system ();
 	assemble_system ();
