@@ -190,6 +190,7 @@ void ThermalProblem<dim>::assemble_system()
 {
 	Status("Starting assemble_system.", verbosity, MIN_V);
 
+	Status("Starting initialization of assembly variables.", verbosity, MAX_V);
 	QGauss<dim>  quadrature_formula(2);
 
 	const RightHandSide<dim> right_hand_side;
@@ -205,11 +206,12 @@ void ThermalProblem<dim>::assemble_system()
 	Vector<double>       cell_rhs (dofs_per_cell);
 
 	std::vector<unsigned int> local_dof_indices (dofs_per_cell);
+	Status("Completed initialization of assembly variables.", verbosity, MAX_V);
 
+	Status("Starting the cell loop in assembly.", verbosity, MAX_V);
 	typename DoFHandler<dim>::active_cell_iterator
 	cell = dof_handler.begin_active(),
 	endc = dof_handler.end();
-
 	for (; cell!=endc; ++cell)
 	{
 		fe_values.reinit (cell);
@@ -242,6 +244,7 @@ void ThermalProblem<dim>::assemble_system()
 			system_rhs(local_dof_indices[i]) += cell_rhs(i);
 		}
 	}
+	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
 
 
 	std::map<unsigned int,double> boundary_values_map;
