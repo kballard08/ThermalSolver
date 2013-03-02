@@ -1,3 +1,22 @@
 SetDim 2
-UseDefaultMesh
 
+UseDefaultMesh // Default mesh results in hyper_cube (-1, 1)
+
+SetVerbosity 1
+
+ReadBoundaries
+	// Create line from x = -1 to 1 at y = 1 and assign boundary_id of 1
+	// In other words, the top of the mesh
+	1 -1.0 1.0 1.0 1.0 // boundary_id x1 y1 x2 y2 (forms line)
+
+	// Create line along boundary that is normal to x-axis at y = 1.0
+	2 0 1.0
+EndBoundaries
+
+ReadBCs
+	// Specifies a temperature value with arguments:
+	// boundary_id value
+	TemperatureBoundary 0 0.0
+	TemperatureBoundary 1 100.0
+	TemperatureBoundary 2 10.0
+EndBCs
