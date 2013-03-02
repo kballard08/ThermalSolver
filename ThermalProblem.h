@@ -42,6 +42,7 @@
 #include "BoundaryCondition.h"
 #include "TemperatureBoundary.h"
 #include "ScriptReader.h"
+#include "Utility.h"
 
 namespace ThermalSolverNS
 {
@@ -53,7 +54,7 @@ class ThermalProblem
 {
 
 public:
-	ThermalProblem () : fe(1), dof_handler(triangulation) {};
+	ThermalProblem ();
 	~ThermalProblem() {};
 
 	void run_test ();
@@ -67,6 +68,7 @@ private:
 	void output_results () const;
 
 	ScriptReader* sr;
+	Verbosity verbosity;
 
 	Triangulation<dim>   triangulation;
 	FE_Q<dim>            fe;
@@ -80,6 +82,13 @@ private:
 	Vector<double>       system_rhs;
 
 };
+
+// Constructor
+template<int dim>
+ThermalProblem<dim>::ThermalProblem() : fe(1), dof_handler(triangulation) {
+	verbosity = MIN_V;
+	sr = 0;
+}
 
 // Public method: run
 template<int dim>
@@ -124,6 +133,8 @@ void ThermalProblem<dim>::run(ScriptReader *script_reader)
 template<int dim>
 void ThermalProblem<dim>::make_grid_test()
 {
+	Status("Using the test grid.", verbosity, MIN_V);
+
 	// For now just generate cube
 	// Later include functionality to read in a mesh file?
 	GridGenerator::hyper_cube(triangulation, -1, 1);
@@ -157,6 +168,8 @@ void ThermalProblem<dim>::make_grid_test()
 template<int dim>
 void ThermalProblem<dim>::setup_system()
 {
+	Status("Starting setup_system.", verbosity, MIN_V);
+
 	dof_handler.distribute_dofs (fe);
 
 	std::cout << "   Number of degrees of freedom: " << dof_handler.n_dofs() << "\n";
@@ -175,6 +188,7 @@ void ThermalProblem<dim>::setup_system()
 template<int dim>
 void ThermalProblem<dim>::assemble_system()
 {
+	Status("Starting assemble_system.", verbosity, MIN_V);
 
 	QGauss<dim>  quadrature_formula(2);
 
@@ -247,6 +261,8 @@ void ThermalProblem<dim>::assemble_system()
 template<int dim>
 void ThermalProblem<dim>::solve()
 {
+	Status("Starting solve.", verbosity, MIN_V);
+
 	SolverControl           solver_control (1000, 1e-12);
 	SolverCG<>              solver (solver_control);
 	solver.solve (system_matrix, solution, system_rhs,
@@ -261,6 +277,8 @@ void ThermalProblem<dim>::solve()
 template<int dim>
 void ThermalProblem<dim>::output_results() const
 {
+	Status("Starting output_results.", verbosity, MIN_V);
+
 	DataOut<dim> data_out;
 
 	data_out.attach_dof_handler (dof_handler);

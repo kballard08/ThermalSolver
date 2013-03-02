@@ -10,6 +10,9 @@
 
 #include <deal.II/base/function.h>
 
+namespace ThermalSolverNS
+{
+
 using namespace dealii;
 
 template <int dim>
@@ -33,5 +36,6 @@ double RightHandSide<dim>::value (const Point<dim> &p, const unsigned int /*comp
 	return 0;
 }
 
+}
 
 #endif /* RIGHTHANDSIDE_H_ */
