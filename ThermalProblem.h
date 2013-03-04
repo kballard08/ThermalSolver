@@ -42,7 +42,10 @@
 #include "BoundaryGeometry.h"
 #include "RightHandSide.h"
 #include "ScriptReader.h"
+
 #include "TemperatureBoundary.h"
+#include "FluxBoundary.h"
+
 #include "Utility.h"
 
 
@@ -78,7 +81,8 @@ private:
 	DoFHandler<dim>		dof_handler;
 
 	std::vector<BoundaryGeometry<dim> *> boundaries;
-	std::vector<BoundaryCondition<dim> *> boundary_conditions;
+	std::vector<TemperatureBoundary<dim> *> temperature_bcs;
+	std::vector<FluxBoundary<dim> *> flux_bcs;
 
 	SparsityPattern      sparsity_pattern;
 	SparseMatrix<double> system_matrix;
@@ -107,8 +111,8 @@ ThermalProblem<dim>::~ThermalProblem() {
 		delete boundaries[i];
 	}
 
-	for (unsigned int i = 0; i < boundary_conditions.size(); i++) {
-		delete boundary_conditions[i];
+	for (unsigned int i = 0; i < temperature_bcs.size(); i++) {
+		delete temperature_bcs[i];
 	}
 }
 
@@ -197,8 +201,14 @@ void ThermalProblem<dim>::run(ScriptReader *script_reader)
 				else if (tokens[0] == "TemperatureBoundary") {
 					// Expected tokens for 2d and 3d are:
 					// boundary_id value
-					BoundaryCondition<dim> * bc_p = new TemperatureBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
-					boundary_conditions.push_back(bc_p);
+					TemperatureBoundary<dim> * bc_p = new TemperatureBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
+					temperature_bcs.push_back(bc_p);
+				}
+				else if (tokens[0] == "FluxBoundary") {
+					// Expected tokens for 2d and 3d are:
+					// boundary_id value
+					FluxBoundary<dim> * bc_p = new FluxBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
+					flux_bcs.push_back(bc_p);
 				}
 				else {
 					Assert(false, ExcNotImplemented())
@@ -274,15 +284,21 @@ void ThermalProblem<dim>::assemble_system()
 
 	Status("Starting initialization of assembly variables.", verbosity, MAX_V);
 	QGauss<dim>  quadrature_formula(2);
+	QGauss<dim-1> face_quadrature_formula(2);
 
 	const RightHandSide<dim> right_hand_side;
 
 	FEValues<dim> fe_values (fe, quadrature_formula,
-	update_values   | update_gradients |
-	update_quadrature_points | update_JxW_values);
+			update_values   | update_gradients |
+			update_quadrature_points | update_JxW_values);
 
-	const unsigned int   dofs_per_cell = fe.dofs_per_cell;
-	const unsigned int   n_q_points    = quadrature_formula.size();
+	FEFaceValues<dim> fe_face_values (fe, face_quadrature_formula,
+			update_values         | update_quadrature_points  |
+			update_normal_vectors | update_JxW_values);
+
+	const unsigned int dofs_per_cell = fe.dofs_per_cell;
+	const unsigned int n_q_points    = quadrature_formula.size();
+	const unsigned int n_face_q_points = face_quadrature_formula.size();
 
 	FullMatrix<double>   cell_matrix (dofs_per_cell, dofs_per_cell);
 	Vector<double>       cell_rhs (dofs_per_cell);
@@ -330,8 +346,22 @@ void ThermalProblem<dim>::assemble_system()
 			}
 		}
 
-		// TODO: Loop over faces and apply Nuemman BC's
-		// http://www.dealii.org/developer/doxygen/deal.II/step_7.html#PlainProg
+		// Loop over faces and apply Nuemman BC's
+		for (unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell; face++) {
+			if (cell->face(face)->at_boundary()) {
+				for (unsigned int flux_bc_index = 0; flux_bc_index < flux_bcs.size(); flux_bc_index++) {
+					if (cell->face(face)->boundary_indicator() == flux_bcs[flux_bc_index]->get_id()) {
+						fe_face_values.reinit(cell, face);
+						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
+							const double neumann_value = flux_bcs[flux_bc_index]->value(fe_face_values.quadrature_point(q_point));
+
+							for (unsigned int i=0; i<dofs_per_cell; ++i)
+								cell_rhs(i) += (neumann_value * fe_face_values.shape_value(i,q_point) * fe_face_values.JxW(q_point));
+						}
+					}
+				}
+			}
+		}
 
 		cell->get_dof_indices (local_dof_indices);
 		for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -347,11 +377,11 @@ void ThermalProblem<dim>::assemble_system()
 	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
 
 
-	for (unsigned int i = 0; i < boundary_conditions.size(); i++) {
+	for (unsigned int i = 0; i < temperature_bcs.size(); i++) {
 		std::map<unsigned int,double> boundary_values_map;
 		VectorTools::interpolate_boundary_values (dof_handler,
-					boundary_conditions[i]->get_id(),
-					*boundary_conditions[i],
+					temperature_bcs[i]->get_id(),
+					*temperature_bcs[i],
 					boundary_values_map);
 
 		MatrixTools::apply_boundary_values (boundary_values_map,

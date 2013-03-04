@@ -56,7 +56,7 @@ private:
 	double def_value;
 
 	// Tweak this value if points that should be on a plane are not or vice versa
-	const double tol = 1e-12;
+	constexpr static double tol = 1e-12;
 };
 
 template<int dim>
