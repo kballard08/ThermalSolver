@@ -12,7 +12,7 @@
 #include <deal.II/base/point.h>
 #include <deal.II/base/exceptions.h>
 
-namespace ThermalSolverNS
+namespace FEASolverNS
 {
 
 using namespace dealii;

@@ -13,7 +13,7 @@
 
 #include <math.h>
 
-namespace ThermalSolverNS
+namespace FEASolverNS
 {
 
 using namespace dealii;

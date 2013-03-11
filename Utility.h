@@ -11,7 +11,7 @@
 #include <iostream>
 #include <string>
 
-namespace ThermalSolverNS
+namespace FEASolverNS
 {
 
 enum Verbosity {

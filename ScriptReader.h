@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-namespace ThermalSolverNS
+namespace FEASolverNS
 {
 
 using namespace dealii;

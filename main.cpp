@@ -7,25 +7,13 @@
 
 #include <deal.II/base/exceptions.h>
 
-#include "ThermalProblem.h"
+#include "Executive.h"
 #include "ScriptReader.h"
 
 using namespace dealii;
 
 int main (int argc, char* argv[])
 {
-	// TODO: delete this comment block.  This was simply for testing the ScriptReader
-	/*
-	ThermalSolverNS::ScriptReader sr("script_test.txt");
-	std::vector<std::string> tokens;
-	int lineNum = 0;
-	while(sr.get_next_line(tokens)) {
-		std::cout << "Line: " << lineNum++ << std::endl;
-		for (unsigned int i = 0; i < tokens.size(); i++)
-			std::cout << tokens[i] << std::endl;
-	}
-	*/
-
 	try
 	{
 		using namespace dealii;
@@ -33,11 +21,12 @@ int main (int argc, char* argv[])
 		deallog.depth_console (0);
 
 		if (argc == 1) {
-			ThermalSolverNS::ThermalProblem<2> thermal_problem;
-			thermal_problem.run_test();
+			// TODO: run a test instead?
+			std::cout << "A path to an input script must be taken in as an argument." << std::endl;
+			return 0;
 		}
 		else if (argc == 2) {
-			ThermalSolverNS::ScriptReader* sr = new ThermalSolverNS::ScriptReader(argv[1]);
+			FEASolverNS::ScriptReader* sr = new FEASolverNS::ScriptReader(argv[1]);
 
 			std::vector<std::string> tokens;
 			sr->get_next_line(tokens);
@@ -45,12 +34,12 @@ int main (int argc, char* argv[])
 				Assert(tokens.size() == 2, dealii::ExcMessage("The command SetDim in the input script has the wrong ammound of arguments."))
 
 				if (tokens[1] == "2") {
-					ThermalSolverNS::ThermalProblem<2> thermal_problem;
-					thermal_problem.run(sr); // change to use script
+					FEASolverNS::Executive<2> ex;
+					ex.run(sr); // pass ScriptReader to executive class to finish processing input script
 				}
 				else if (tokens[1] == "3") {
-					ThermalSolverNS::ThermalProblem<3> thermal_problem;
-					thermal_problem.run(sr); // change to use script
+					FEASolverNS::Executive<3> ex;
+					ex.run(sr); // pass ScriptReader to executive class to finish processing input script
 				}
 				else {
 					Assert(false, ExcNotImplemented())

@@ -10,7 +10,7 @@
 
 #include <deal.II/base/function.h>
 
-namespace ThermalSolverNS
+namespace FEASolverNS
 {
 
 using namespace dealii;

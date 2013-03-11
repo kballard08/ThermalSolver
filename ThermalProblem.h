@@ -49,7 +49,7 @@
 #include "Utility.h"
 
 
-namespace ThermalSolverNS
+namespace FEASolverNS
 {
 
 using namespace dealii;
@@ -59,28 +59,28 @@ class ThermalProblem
 {
 
 public:
-	ThermalProblem ();
+	ThermalProblem (Triangulation<dim> *triag);
 	~ThermalProblem();
 
-	void run_test ();
-	void run (ScriptReader *script_reader);
+	bool process_cmd(std::vector<std::string> tokens);
+	bool process_bc(std::vector<std::string> tokens);
+
+	void initialize_ptrs(Triangulation<dim> *tria, std::vector<BoundaryGeometry<dim> *> *bound);
+	void run();
 
 private:
-	void make_grid_test ();
-
 	void setup_system();
 	void assemble_system ();
 	void solve ();
 	void output_results () const;
 
-	ScriptReader* sr;
 	Verbosity verbosity;
 
-	Triangulation<dim>  triangulation;
+	Triangulation<dim>  *triangulation;
 	FE_Q<dim>          	fe;
 	DoFHandler<dim>		dof_handler;
 
-	std::vector<BoundaryGeometry<dim> *> boundaries;
+	std::vector<BoundaryGeometry<dim> *> *boundaries;
 	std::vector<TemperatureBoundary<dim> *> temperature_bcs;
 	std::vector<FluxBoundary<dim> *> flux_bcs;
 
@@ -90,168 +90,72 @@ private:
 	Vector<double>       solution;
 	Vector<double>       system_rhs;
 
-	// State variables
-	bool mesh_initialized;
 };
 
 // Constructor
-template<int dim>
-ThermalProblem<dim>::ThermalProblem() : fe(1), dof_handler(triangulation) {
+template<int dim> // TODO: Fix this error, executive should have the triag
+ThermalProblem<dim>::ThermalProblem(Triangulation<dim> *triag) : fe(1), triangulation(triag), dof_handler(*triag) {
 	verbosity = MIN_V;
-	sr = 0;
-
-	// Initialize state variables;
-	mesh_initialized = false;
+	boundaries = 0;
 }
 
 // Destructor
 template<int dim>
 ThermalProblem<dim>::~ThermalProblem() {
-	for (unsigned int i = 0; i < boundaries.size(); i++) {
-		delete boundaries[i];
-	}
-
 	for (unsigned int i = 0; i < temperature_bcs.size(); i++) {
 		delete temperature_bcs[i];
 	}
 }
 
+// Public method: process_cmd
+template<int dim>
+bool ThermalProblem<dim>::process_cmd(std::vector<std::string> tokens)
+{
+	// No commands right now
+	return false;
+}
+
+// Public method: process_bc
+template<int dim>
+bool ThermalProblem<dim>::process_bc(std::vector<std::string> tokens)
+{
+	if (tokens[0] == "TemperatureBoundary") {
+		// Expected tokens for 2d and 3d are:
+		// boundary_id value
+		TemperatureBoundary<dim> * bc_p = new TemperatureBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
+		temperature_bcs.push_back(bc_p);
+	}
+	else if (tokens[0] == "FluxBoundary") {
+		// Expected tokens for 2d and 3d are:
+		// boundary_id value
+		FluxBoundary<dim> * bc_p = new FluxBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
+		flux_bcs.push_back(bc_p);
+	}
+	else {
+		return false;
+	}
+
+	return true;
+}
+
 // Public method: run
 template<int dim>
-void ThermalProblem<dim>::run_test()
+void ThermalProblem<dim>::initialize_ptrs(Triangulation<dim> *tria, std::vector<BoundaryGeometry<dim> *> *bound)
+{
+	triangulation = tria;
+	boundaries = bound;
+}
+
+// Public method: run
+template<int dim>
+void ThermalProblem<dim>::run()
 {
 	std::cout << "Solving test problem in " << dim << " space dimensions." << std::endl;
 
-	make_grid_test();
 	setup_system ();
 	assemble_system ();
 	solve ();
 	output_results ();
-}
-
-// Public method: run (reads script)
-template<int dim>
-void ThermalProblem<dim>::run(ScriptReader *script_reader)
-{
-	std::cout << "Solving problem in " << dim << " space dimensions." << std::endl;
-	sr = script_reader;
-
-	std::vector<std::string> tokens;
-	int lineNum = 0;
-	while(sr->get_next_line(tokens)) {
-		if (verbosity >= MAX_V) {
-			std::cout << "Processing line: " << lineNum++;
-			for (unsigned int i = 0; i < tokens.size(); i++)
-				std::cout << " " <<tokens[i];
-			std::cout << std::endl;
-		}
-
-		// TODO: make a more efficient process command structure
-		// Process the commands of the input file
-		if (tokens[0] == "UseDefaultMesh") {
-			make_grid_test();
-		} // TODO: add other mesh/grid methods to read from file
-		else if (tokens[0] == "SetVerbosity") {
-			Assert(tokens.size() == 2, ExcMessage("The input line SetVerbosity expects an argument for the verbosity level to set."))
-			verbosity = (Verbosity)atoi(tokens[1].c_str());
-		}
-		else if (tokens[0] == "ReadBoundaries") { // ReadBoundaries
-			while (sr->get_next_line(tokens)) {
-				if (tokens[0] == "EndBoundaries") {
-					Status("Finished reading boundaries.", verbosity, MAX_V);
-					break;
-				}
-				else if (tokens.size() == dim*dim + 1) {
-					// For 2d: (forms a line and assigns boundary id to line)
-					// boundary_id x1 y1 x2 y2
-					// For 3d: (forms a line and assigns boundary id to line)
-					// boundary_id x1 y1 z1 x2 y2 z2 x3 y3 z3
-					BoundaryGeometry<dim> * bg_p = new BoundaryGeometry<dim>(atoi(tokens[0].c_str()));
-
-					// Get the points
-					int index = 1;
-					Point<dim> points[dim];
-					for (int i = 0; i < dim; i++)
-						for (int j = 0; j < dim; j++) {
-							points[i](j) = atof(tokens[index].c_str());
-							index++;
-						}
-
-					bg_p->define_geometry(points);
-					boundaries.push_back(bg_p);
-				}
-				else if (tokens.size() == 3) {
-					// Expected tokens for 2d and 3d are:
-					// boundary_id axis value_along_axis
-					BoundaryGeometry<dim> * bg_p = new BoundaryGeometry<dim>(atoi(tokens[0].c_str()));
-					bg_p->define_geometry(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
-					boundaries.push_back(bg_p);
-				}
-				else {
-					Assert(false, ExcNotImplemented())
-				}
-			}
-		} // ReadBoundaries
-		else if (tokens[0] == "ReadBCs") { // ReadBCs
-			while (sr->get_next_line(tokens)) {
-				if (tokens[0] == "EndBCs") {
-					Status("Finished reading boundary conditions.", verbosity, MAX_V);
-					break;
-				}
-				else if (tokens[0] == "TemperatureBoundary") {
-					// Expected tokens for 2d and 3d are:
-					// boundary_id value
-					TemperatureBoundary<dim> * bc_p = new TemperatureBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
-					temperature_bcs.push_back(bc_p);
-				}
-				else if (tokens[0] == "FluxBoundary") {
-					// Expected tokens for 2d and 3d are:
-					// boundary_id value
-					FluxBoundary<dim> * bc_p = new FluxBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
-					flux_bcs.push_back(bc_p);
-				}
-				else {
-					Assert(false, ExcNotImplemented())
-				}
-			}
-		} // ReadBCs
-	}
-
-	setup_system ();
-	assemble_system ();
-	solve ();
-	output_results ();
-}
-
-// Private method: make_grid
-template<int dim>
-void ThermalProblem<dim>::make_grid_test()
-{
-	Status("Using the test grid.", verbosity, MIN_V);
-
-	// For now just generate cube
-	// Later include functionality to read in a mesh file?
-	GridGenerator::hyper_cube(triangulation, -1, 1);
-	triangulation.refine_global(4);
-
-	// Create boundary conditions
-	Point<dim> p1(true), p2(true), p3(true);
-	if (dim == 2) {
-		p1(0) = -1;	p1(1) = -1;	// (-1, -1)
-		p2(0) = 0;	p2(1) = 1;	// (0, 1)
-		p3(0) = 1;	p3(1) = -1;	// (1, -1)
-	}
-	else if (dim == 3) {
-		p1(0) = -1;	p1(1) = -1;	p1(2) = -1;	// (-1, -1, -1)
-		p2(0) = 0;	p2(1) = 1;	p2(2) = 1;	// (0, 1, 1)
-		p3(0) = 1;	p3(1) = -1;	p3(2) = -1;	// (1, -1, -1)
-	}
-	else {
-		Assert(false, ExcNotImplemented())
-	}
-
-	// Update state information
-	mesh_initialized = true;
 }
 
 // Private method: setup_system
@@ -259,8 +163,6 @@ template<int dim>
 void ThermalProblem<dim>::setup_system()
 {
 	Status("Starting setup_system.", verbosity, MIN_V);
-
-	Assert(mesh_initialized, ExcMessage("The mesh must be initialized before calling setup_system."))
 
 	dof_handler.distribute_dofs (fe);
 
@@ -316,11 +218,11 @@ void ThermalProblem<dim>::assemble_system()
 		// Check if the center of the face is on one of the given boundaries and set its boundary indicator
 		// In the case it is not, the boundary indicator will remain 0
 		for (unsigned int face = 0; face<GeometryInfo<dim>::faces_per_cell; face++)
-			for (unsigned int boundary_index = 0; boundary_index < boundaries.size(); boundary_index++)
-				if (boundaries[boundary_index]->point_on_geometry(cell->face(face)->center())) {
-					cell->face(face)->set_boundary_indicator(boundaries[boundary_index]->get_id()); // TODO: Should this be set_all_boundary_indicators?
+			for (unsigned int boundary_index = 0; boundary_index < boundaries->size(); boundary_index++)
+				if ((*boundaries)[boundary_index]->point_on_geometry(cell->face(face)->center())) {
+					cell->face(face)->set_boundary_indicator((*boundaries)[boundary_index]->get_id()); // TODO: Should this be set_all_boundary_indicators?
 					if (verbosity == DEBUG_V) {
-						std::cout << "Setting boundary id " << boundaries[boundary_index]->get_id() << " at face " << face << " with center: (";
+						std::cout << "Setting boundary id " << (*boundaries)[boundary_index]->get_id() << " at face " << face << " with center: (";
 						for (int i = 0; i < dim; i++)
 							std::cout << cell->face(face)->center()(i) << ", ";
 						std::cout << ")" << std::endl;
@@ -421,8 +323,8 @@ void ThermalProblem<dim>::output_results() const
 	data_out.build_patches ();
 
 	std::ofstream output (dim == 2 ?
-			"solution-2d.vtk" :
-			"solution-3d.vtk");
+			"thermal-solution-2d.vtk" :
+			"thermal-solution-3d.vtk");
 
 	data_out.write_vtk (output);
 }

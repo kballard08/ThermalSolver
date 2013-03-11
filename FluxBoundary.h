@@ -10,7 +10,7 @@
 
 #include "BoundaryCondition.h"
 
-namespace ThermalSolverNS
+namespace FEASolverNS
 {
 
 template<int dim>
