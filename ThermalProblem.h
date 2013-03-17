@@ -40,7 +40,7 @@
 
 #include "BoundaryCondition.h"
 #include "BoundaryGeometry.h"
-#include "RightHandSide.h"
+#include "ThermalRightHandSide.h"
 #include "ScriptReader.h"
 
 #include "TemperatureBoundary.h"
@@ -65,8 +65,7 @@ public:
 	bool process_cmd(std::vector<std::string> tokens);
 	bool process_bc(std::vector<std::string> tokens);
 
-	void initialize_ptrs(Triangulation<dim> *tria, std::vector<BoundaryGeometry<dim> *> *bound);
-	void run();
+	Vector<double>& run(std::vector<BoundaryGeometry<dim> *> *bound);
 
 private:
 	void setup_system();
@@ -80,7 +79,7 @@ private:
 	FE_Q<dim>          	fe;
 	DoFHandler<dim>		dof_handler;
 
-	std::vector<BoundaryGeometry<dim> *> *boundaries;
+	std::vector<BoundaryGeometry<dim> *> * boundaries;
 	std::vector<TemperatureBoundary<dim> *> temperature_bcs;
 	std::vector<FluxBoundary<dim> *> flux_bcs;
 
@@ -93,8 +92,9 @@ private:
 };
 
 // Constructor
-template<int dim> // TODO: Fix this error, executive should have the triag
-ThermalProblem<dim>::ThermalProblem(Triangulation<dim> *triag) : fe(1), triangulation(triag), dof_handler(*triag) {
+template<int dim>
+ThermalProblem<dim>::ThermalProblem(Triangulation<dim> *triag) : fe(1), dof_handler(*triag) {
+	triangulation = triag;
 	verbosity = MIN_V;
 	boundaries = 0;
 }
@@ -105,6 +105,12 @@ ThermalProblem<dim>::~ThermalProblem() {
 	for (unsigned int i = 0; i < temperature_bcs.size(); i++) {
 		delete temperature_bcs[i];
 	}
+
+	for (unsigned int i = 0; i < flux_bcs.size(); i++) {
+		delete flux_bcs[i];
+	}
+
+	dof_handler.clear ();
 }
 
 // Public method: process_cmd
@@ -140,22 +146,18 @@ bool ThermalProblem<dim>::process_bc(std::vector<std::string> tokens)
 
 // Public method: run
 template<int dim>
-void ThermalProblem<dim>::initialize_ptrs(Triangulation<dim> *tria, std::vector<BoundaryGeometry<dim> *> *bound)
-{
-	triangulation = tria;
-	boundaries = bound;
-}
-
-// Public method: run
-template<int dim>
-void ThermalProblem<dim>::run()
+Vector<double>& ThermalProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound)
 {
 	std::cout << "Solving test problem in " << dim << " space dimensions." << std::endl;
+
+	boundaries = bound;
 
 	setup_system ();
 	assemble_system ();
 	solve ();
 	output_results ();
+
+	return solution;
 }
 
 // Private method: setup_system
@@ -188,7 +190,7 @@ void ThermalProblem<dim>::assemble_system()
 	QGauss<dim>  quadrature_formula(2);
 	QGauss<dim-1> face_quadrature_formula(2);
 
-	const RightHandSide<dim> right_hand_side;
+	const ThermalRightHandSide<dim> right_hand_side;
 
 	FEValues<dim> fe_values (fe, quadrature_formula,
 			update_values   | update_gradients |

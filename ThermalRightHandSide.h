@@ -16,11 +16,11 @@ namespace FEASolverNS
 using namespace dealii;
 
 template <int dim>
-class RightHandSide : public Function<dim>
+class ThermalRightHandSide : public Function<dim>
 {
 public:
-	RightHandSide() {};
-	virtual ~RightHandSide() {};
+	ThermalRightHandSide() {};
+	virtual ~ThermalRightHandSide() {};
 
 	virtual double value (const Point<dim>   &p,
                         const unsigned int  component = 0) const;
@@ -28,7 +28,7 @@ public:
 
 template <int dim>
 inline
-double RightHandSide<dim>::value (const Point<dim> &p, const unsigned int /*component*/) const
+double ThermalRightHandSide<dim>::value (const Point<dim> &p, const unsigned int /*component*/) const
 {
 	// For now this assumes that there is no heat generation in the body
 	// which is fine for now.  Later this may be a function of position
