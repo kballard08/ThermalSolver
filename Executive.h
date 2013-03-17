@@ -39,6 +39,7 @@ private:
 
 	Triangulation<dim>  triangulation;
 	std::vector<BoundaryGeometry<dim> *> *boundaries;
+	std::vector<std::vector<Tensor< 1, dim>>>	thermal_grads;
 	ScriptReader* 		sr;
 
 	ElasticityProblem<dim>	elasticity_problem;
@@ -171,10 +172,10 @@ void Executive<dim>::run(ScriptReader *script_reader)
 	}
 
 	// Let the thermal problem solve
-	thermal_problem.run(boundaries);
+	thermal_grads = thermal_problem.run(boundaries);
 
 	// Solve the elasticity problem
-	elasticity_problem.run(boundaries);
+	elasticity_problem.run(boundaries, thermal_grads);
 }
 
 // Private method: make_grid

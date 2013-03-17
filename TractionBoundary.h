@@ -36,7 +36,7 @@ private:
 };
 
 template <int dim>
-TractionBoundary<dim>::TractionBoundary(int boundary_id, const std::vector<double> &traction) : bound_id(boundary_id), tract(traction)
+TractionBoundary<dim>::TractionBoundary(int boundary_id, const std::vector<double> &traction) : BoundaryCondition<dim>(dim), bound_id(boundary_id), tract(traction)
 {
 	// Make sure the prescribed traction is of the correct dimension
 	Assert(traction.size() == dim, ExcDimensionMismatch (traction.size(), dim));

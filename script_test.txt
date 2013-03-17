@@ -5,7 +5,7 @@ UseDefaultMesh // Default mesh results in hyper_cube (-1, 1)
 SetVerbosity 3
 
 // material_id lambda mu
-IsotropicMaterial 0 4.8696e10 26e9
+IsotropicMaterial 0 4.8696e10 26e9 22.3
 
 ReadBoundaries
 	// Create line from x = -1 to 1 at y = 1 and assign boundary_id of 1
@@ -23,7 +23,7 @@ ReadBCs
 	TemperatureBoundary 1 100.0
 	FluxBoundary 2 150.0
 
-	TemperatureBoundary 0 0.0
-	FluxBoundary 1 0.0
-	FluxBoundary 2 0
+	DisplacementBoundary 0 0.0 0.0
+	TractionBoundary 1 0.0 0.0
+	TractionBoundary 2 0.0 0.0
 EndBCs

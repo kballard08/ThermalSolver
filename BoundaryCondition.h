@@ -26,7 +26,7 @@ template<int dim>
 class BoundaryCondition : public Function<dim>
 {
 public:
-	BoundaryCondition() : Function<dim>() {};
+	BoundaryCondition(int n_comp = 1) : Function<dim>(n_comp) {};
 	virtual ~BoundaryCondition() {};
 
 	// Virtual Methods

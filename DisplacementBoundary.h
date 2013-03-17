@@ -36,7 +36,7 @@ private:
 };
 
 template <int dim>
-DisplacementBoundary<dim>::DisplacementBoundary(int boundary_id, const std::vector<double> &displacement) : bound_id(boundary_id), disp(displacement)
+DisplacementBoundary<dim>::DisplacementBoundary(int boundary_id, const std::vector<double> &displacement) : BoundaryCondition<dim>(dim), bound_id(boundary_id), disp(displacement)
 {
 	// Make sure the prescribed displacement is of the correct dimension
 	Assert(displacement.size() == dim, ExcDimensionMismatch (displacement.size(), dim));

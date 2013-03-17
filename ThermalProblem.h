@@ -65,7 +65,7 @@ public:
 	bool process_cmd(std::vector<std::string> tokens);
 	bool process_bc(std::vector<std::string> tokens);
 
-	Vector<double>& run(std::vector<BoundaryGeometry<dim> *> *bound);
+	std::vector<std::vector<Tensor< 1, dim>>> run(std::vector<BoundaryGeometry<dim> *> *bound);
 
 private:
 	void setup_system();
@@ -88,6 +88,7 @@ private:
 
 	Vector<double>       solution;
 	Vector<double>       system_rhs;
+	std::vector<std::vector<Tensor< 1, dim>>> thermal_grads;
 
 };
 
@@ -146,7 +147,7 @@ bool ThermalProblem<dim>::process_bc(std::vector<std::string> tokens)
 
 // Public method: run
 template<int dim>
-Vector<double>& ThermalProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound)
+std::vector<std::vector<Tensor< 1, dim>>> ThermalProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound)
 {
 	std::cout << "Solving test problem in " << dim << " space dimensions." << std::endl;
 
@@ -154,10 +155,9 @@ Vector<double>& ThermalProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *b
 
 	setup_system ();
 	assemble_system ();
-	solve ();
 	output_results ();
 
-	return solution;
+	return thermal_grads;
 }
 
 // Private method: setup_system
@@ -292,6 +292,23 @@ void ThermalProblem<dim>::assemble_system()
 			  system_matrix,
 			  solution,
 			  system_rhs);
+	}
+
+	// Call the solve
+	solve();
+
+	// Compute the thermal_solution gradients
+	cell = dof_handler.begin_active();
+	for (; cell!=endc; ++cell)
+	{
+		fe_values.reinit (cell);
+
+		std::vector<Tensor< 1, dim>> cell_grads;
+		cell_grads.resize(n_q_points);
+
+		fe_values.get_function_gradients(solution, cell_grads);
+
+		thermal_grads.push_back(cell_grads);
 	}
 }
 

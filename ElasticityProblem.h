@@ -62,7 +62,7 @@ public:
 	bool process_cmd(std::vector<std::string> tokens);
 	bool process_bc(std::vector<std::string> tokens);
 
-	Vector<double>& run(std::vector<BoundaryGeometry<dim> *> *bound);
+	Vector<double>& run(std::vector<BoundaryGeometry<dim> *> *bound, const std::vector<std::vector<Tensor< 1, dim>>> &thermal_gradients);
 
 private:
 	void setup_system();
@@ -73,7 +73,7 @@ private:
 	Verbosity verbosity;
 
 	Triangulation<dim>  *triangulation;
-	FE_Q<dim>          	fe;
+	FESystem<dim>          	fe;
 	DoFHandler<dim>		dof_handler;
 	ConstraintMatrix     hanging_node_constraints;
 
@@ -86,13 +86,14 @@ private:
 	SparsityPattern      sparsity_pattern;
 	SparseMatrix<double> system_matrix;
 
+	std::vector<std::vector<Tensor< 1, dim>>> thermal_grads;
 	Vector<double>       solution;
 	Vector<double>       system_rhs;
 };
 
 // Constructor
 template<int dim>
-ElasticityProblem<dim>::ElasticityProblem(Triangulation<dim> *triag) : fe(1), dof_handler(*triag) {
+ElasticityProblem<dim>::ElasticityProblem(Triangulation<dim> *triag) : fe(FE_Q<dim>(1), dim), dof_handler(*triag) {
 	triangulation = triag;
 	verbosity = MAX_V;
 	boundaries = 0;
@@ -119,9 +120,10 @@ bool ElasticityProblem<dim>::process_cmd(std::vector<std::string> tokens)
 	// TODO: Add support for orthotropic materials
 	if (tokens[0] == "IsotropicMaterial") {
 		Status("Adding an isotropic material.", verbosity, MAX_V);
+		Assert(tokens.size() == 5, ExcMessage("IsotropicMaterial command in the input script did not meet the expected parameters of material_id lambda mu alpha."))
 		// Expected tokens are:
-		// material_id lambda mu
-		materials.push_back(IsotropicMaterial(atoi(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str())));
+		// material_id lambda mu alpha
+		materials.push_back(IsotropicMaterial(atoi(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()), atof(tokens[4].c_str())));
 	}
 	else {
 		return true;
@@ -137,6 +139,8 @@ bool ElasticityProblem<dim>::process_bc(std::vector<std::string> tokens)
 	if (tokens[0] == "DisplacementBoundary") {
 		std::vector<double> disp_values;
 
+		Assert(tokens.size() == 2 + dim, ExcMessage("The expected token number for DisplacementBoundary command was not met."))
+
 		// Expected tokens for 2d are:
 		// boundary_id x_value y_value
 		// Expected tokens for 3d are:
@@ -149,6 +153,8 @@ bool ElasticityProblem<dim>::process_bc(std::vector<std::string> tokens)
 	}
 	else if (tokens[0] == "TractionBoundary") {
 		std::vector<double> tract_values;
+
+		Assert(tokens.size() == 2 + dim, ExcMessage("The expected token number for TractionBoundary command was not met."))
 
 		// Expected tokens for 2d are:
 		// boundary_id x_value y_value
@@ -169,11 +175,12 @@ bool ElasticityProblem<dim>::process_bc(std::vector<std::string> tokens)
 
 // Public method: run
 template<int dim>
-Vector<double>& ElasticityProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound)
+Vector<double>& ElasticityProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound, const std::vector<std::vector<Tensor< 1, dim>>> &thermal_gradients)
 {
 	std::cout << "Solving test problem in " << dim << " space dimensions." << std::endl;
 
 	boundaries = bound;
+	thermal_grads = thermal_gradients;
 
 	setup_system ();
 	assemble_system ();
@@ -244,9 +251,12 @@ void ElasticityProblem<dim>::assemble_system()
 
 	// Used to modify the right hand side for the constraints
 	std::vector<Vector<double> > rhs_values (n_q_points, Vector<double>(dim));
+
 	Status("Completed initialization of assembly variables.", verbosity, MAX_V);
 
+
 	Status("Starting the cell loop in assembly.", verbosity, MAX_V);
+	unsigned int grad_index = 0;
 	typename DoFHandler<dim>::active_cell_iterator cell = dof_handler.begin_active(),
 				endc = dof_handler.end();
 	for (; cell!=endc; ++cell)
@@ -271,6 +281,23 @@ void ElasticityProblem<dim>::assemble_system()
 		cell_rhs = 0;
 
 		right_hand_side.vector_value_list (fe_values.get_quadrature_points(), rhs_values);
+
+		// Get cell's material properties
+		double lambda = 0;
+		double mu = 0;
+		Tensor<2, 3> alpha;
+
+		bool mat_found = false;
+		for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
+			if (materials[mat_ind].get_id() == cell->material_id()) {
+				lambda = materials[mat_ind].get_lambda();
+				mu = materials[mat_ind].get_mu();
+				alpha = materials[mat_ind].get_alpha();
+				mat_found = true;
+				break;
+			}
+		Assert(mat_found, ExcMessage("Material not found in assembly."))
+
 		// Assemble stiffness matrix
 		for (unsigned int i=0; i<dofs_per_cell; i++)
 		{
@@ -279,21 +306,6 @@ void ElasticityProblem<dim>::assemble_system()
 			{
 				const unsigned int component_j = fe.system_to_component_index(j).first;
 				for (unsigned int q_point=0; q_point<n_q_points; ++q_point) {
-					double lambda = 0;
-					double mu = 0;
-
-					bool mat_found = false;
-					for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
-						if (materials[mat_ind].get_id() == cell->material_id()) {
-							lambda = materials[mat_ind].get_lambda();
-							mu = materials[mat_ind].get_mu();
-							mat_found = true;
-							break;
-						}
-
-					Assert(mat_found, ExcMessage("Material not found in assembly."))
-
-
 					cell_matrix(i,j) +=(
 	                        (fe_values.shape_grad(i,q_point)[component_i] * fe_values.shape_grad(j,q_point)[component_j] * lambda)
 	                        + (fe_values.shape_grad(i,q_point)[component_j] * fe_values.shape_grad(j,q_point)[component_i] * mu)
@@ -311,6 +323,14 @@ void ElasticityProblem<dim>::assemble_system()
 				cell_rhs(i) += (fe_values.shape_value (i, q_point) *
 						rhs_values[q_point](component_i) *
 						fe_values.JxW (q_point));
+
+				// Subtract the thermal rhs contribution
+				cell_rhs(i) -= lambda*(alpha[0][0] + alpha[1][1] + alpha[2][2])*thermal_grads[grad_index][q_point][component_i];
+				for (unsigned int j=0; j<dofs_per_cell; j++)
+				{
+					const unsigned int component_j = fe.system_to_component_index(j).first;
+					cell_rhs(i) -= mu*(alpha[component_i][component_j]*thermal_grads[grad_index][q_point][component_j] + alpha[component_j][component_i]*thermal_grads[grad_index][q_point][component_j]);
+				}
 			}
 		}
 
@@ -342,9 +362,15 @@ void ElasticityProblem<dim>::assemble_system()
 
 			system_rhs(local_dof_indices[i]) += cell_rhs(i);
 		}
+
+		// Increment grad_index
+		grad_index++;
 	}
 	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
 
+
+	hanging_node_constraints.condense(system_matrix);
+	hanging_node_constraints.condense(system_rhs);
 
 	for (unsigned int i = 0; i < displacement_bcs.size(); i++) {
 		std::map<unsigned int,double> boundary_values_map;
@@ -358,6 +384,8 @@ void ElasticityProblem<dim>::assemble_system()
 			  solution,
 			  system_rhs);
 	}
+
+	Status("Completed assemble_system.", verbosity, MIN_V);
 } // assemble_system
 
 template <int dim>
