@@ -62,7 +62,7 @@ public:
 	bool process_cmd(std::vector<std::string> tokens);
 	bool process_bc(std::vector<std::string> tokens);
 
-	Vector<double>& run(std::vector<BoundaryGeometry<dim> *> *bound, const std::vector<std::vector<Tensor< 1, dim>>> &thermal_gradients);
+	void run(std::vector<BoundaryGeometry<dim> *> *bound, Vector<double> *thermal_solution, std::vector<std::vector<Tensor< 1, dim>>> *thermal_gradients);
 
 private:
 	void setup_system();
@@ -86,7 +86,9 @@ private:
 	SparsityPattern      sparsity_pattern;
 	SparseMatrix<double> system_matrix;
 
-	std::vector<std::vector<Tensor< 1, dim>>> thermal_grads;
+	std::vector<std::vector<Tensor< 1, dim>>>* thermal_grads;
+	Vector<double>* thermal_sol;
+
 	Vector<double>       solution;
 	Vector<double>       system_rhs;
 };
@@ -97,6 +99,8 @@ ElasticityProblem<dim>::ElasticityProblem(Triangulation<dim> *triag) : fe(FE_Q<d
 	triangulation = triag;
 	verbosity = MAX_V;
 	boundaries = 0;
+	thermal_grads = new std::vector<std::vector<Tensor< 1, dim>>>();
+	thermal_sol = new Vector<double>();
 }
 
 // Destructor
@@ -175,19 +179,18 @@ bool ElasticityProblem<dim>::process_bc(std::vector<std::string> tokens)
 
 // Public method: run
 template<int dim>
-Vector<double>& ElasticityProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound, const std::vector<std::vector<Tensor< 1, dim>>> &thermal_gradients)
+void ElasticityProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound, Vector<double> *thermal_solution, std::vector<std::vector<Tensor< 1, dim>>> *thermal_gradients)
 {
 	std::cout << "Solving test problem in " << dim << " space dimensions." << std::endl;
 
 	boundaries = bound;
 	thermal_grads = thermal_gradients;
+	thermal_sol = thermal_solution;
 
 	setup_system ();
 	assemble_system ();
 	solve ();
 	output_results ();
-
-	return solution;
 } // run
 
 // Private method: setup_system
@@ -325,11 +328,11 @@ void ElasticityProblem<dim>::assemble_system()
 						fe_values.JxW (q_point));
 
 				// Subtract the thermal rhs contribution
-				cell_rhs(i) -= lambda*(alpha[0][0] + alpha[1][1] + alpha[2][2])*thermal_grads[grad_index][q_point][component_i];
+				cell_rhs(i) -= lambda*(alpha[0][0] + alpha[1][1] + alpha[2][2])*(*thermal_grads)[grad_index][q_point][component_i];
 				for (unsigned int j=0; j<dofs_per_cell; j++)
 				{
 					const unsigned int component_j = fe.system_to_component_index(j).first;
-					cell_rhs(i) -= mu*(alpha[component_i][component_j]*thermal_grads[grad_index][q_point][component_j] + alpha[component_j][component_i]*thermal_grads[grad_index][q_point][component_j]);
+					cell_rhs(i) -= mu*(alpha[component_i][component_j]*(*thermal_grads)[grad_index][q_point][component_j] + alpha[component_j][component_i]*(*thermal_grads)[grad_index][q_point][component_j]);
 				}
 			}
 		}
@@ -411,8 +414,6 @@ void ElasticityProblem<dim>::output_results () const
 
 	DataOut<dim> data_out;
 	data_out.attach_dof_handler (dof_handler);
-
-
 
 	std::vector<std::string> solution_names;
 	switch (dim)

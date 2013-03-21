@@ -39,11 +39,13 @@ private:
 
 	Triangulation<dim>  triangulation;
 	std::vector<BoundaryGeometry<dim> *> *boundaries;
-	std::vector<std::vector<Tensor< 1, dim>>>	thermal_grads;
 	ScriptReader* 		sr;
 
 	ElasticityProblem<dim>	elasticity_problem;
 	ThermalProblem<dim>		thermal_problem;
+
+	std::vector<std::vector<Tensor< 1, dim>>> * thermal_grads;
+	Vector<double> * thermal_sol;
 
 	// State variables
 	bool mesh_initialized;
@@ -61,6 +63,9 @@ Executive<dim>::Executive() : elasticity_problem(&triangulation), thermal_proble
 	sr = 0;
 
 	mesh_initialized = false;
+
+	thermal_grads = new std::vector<std::vector<Tensor< 1, dim>>>();
+	thermal_sol = new Vector<double>();
 }
 
 // Destructor
@@ -172,10 +177,12 @@ void Executive<dim>::run(ScriptReader *script_reader)
 	}
 
 	// Let the thermal problem solve
-	thermal_grads = thermal_problem.run(boundaries);
+	thermal_problem.run(boundaries);
+	thermal_sol = thermal_problem.get_thermal_sol();
+	thermal_grads = thermal_problem.get_thermal_grad();
 
 	// Solve the elasticity problem
-	elasticity_problem.run(boundaries, thermal_grads);
+	elasticity_problem.run(boundaries, thermal_sol, thermal_grads);
 }
 
 // Private method: make_grid

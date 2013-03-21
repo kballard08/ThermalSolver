@@ -65,7 +65,10 @@ public:
 	bool process_cmd(std::vector<std::string> tokens);
 	bool process_bc(std::vector<std::string> tokens);
 
-	std::vector<std::vector<Tensor< 1, dim>>> run(std::vector<BoundaryGeometry<dim> *> *bound);
+	void run(std::vector<BoundaryGeometry<dim> *> *bound);
+
+	Vector<double>* get_thermal_sol();
+	std::vector<std::vector<Tensor< 1, dim>>>* get_thermal_grad();
 
 private:
 	void setup_system();
@@ -145,9 +148,23 @@ bool ThermalProblem<dim>::process_bc(std::vector<std::string> tokens)
 	return true;
 }
 
+// Public method: get_thermal_sol
+template<int dim>
+Vector<double>* ThermalProblem<dim>::get_thermal_sol()
+{
+	return &solution;
+}
+
+// Public method: get_thermal_grad
+template<int dim>
+std::vector<std::vector<Tensor< 1, dim>>>* ThermalProblem<dim>::get_thermal_grad()
+{
+	return &thermal_grads;
+}
+
 // Public method: run
 template<int dim>
-std::vector<std::vector<Tensor< 1, dim>>> ThermalProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound)
+void ThermalProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bound)
 {
 	std::cout << "Solving test problem in " << dim << " space dimensions." << std::endl;
 
@@ -156,8 +173,6 @@ std::vector<std::vector<Tensor< 1, dim>>> ThermalProblem<dim>::run(std::vector<B
 	setup_system ();
 	assemble_system ();
 	output_results ();
-
-	return thermal_grads;
 }
 
 // Private method: setup_system
