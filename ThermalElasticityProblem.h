@@ -258,6 +258,110 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 	Status("Completed setup_system.", verbosity, MIN_V);
 } // setup_system
 
+// Private method: assemble_system
+template<int dim>
+void ThermalProblem<dim>::assemble_system()
+{
+	Status("Starting assemble_system.", verbosity, MIN_V);
+
+	Status("Starting initialization of assembly variables.", verbosity, MAX_V);
+	QGauss<dim>  quadrature_formula(2);
+	QGauss<dim-1> face_quadrature_formula(2);
+
+	const ThermalRightHandSide<dim> right_hand_side;
+
+	FEValues<dim> fe_values (fe, quadrature_formula,
+			update_values   | update_gradients |
+			update_quadrature_points | update_JxW_values);
+
+	FEFaceValues<dim> fe_face_values (fe, face_quadrature_formula,
+			update_values         | update_quadrature_points  |
+			update_normal_vectors | update_JxW_values);
+
+	const unsigned int dofs_per_cell = fe.dofs_per_cell;
+	const unsigned int n_q_points    = quadrature_formula.size();
+	const unsigned int n_face_q_points = face_quadrature_formula.size();
+
+	FullMatrix<double>   cell_matrix (dofs_per_cell, dofs_per_cell);
+	Vector<double>       cell_rhs (dofs_per_cell);
+
+	std::vector<unsigned int> local_dof_indices (dofs_per_cell);
+
+	const ThermalRightHandSide<dim> therm_rhs;
+	std::vector<double> therm_rhs_values;
+	Status("Completed initialization of assembly variables.", verbosity, MAX_V);
+
+	Status("Starting the cell loop in assembly.", verbosity, MAX_V);
+	typename DoFHandler<dim>::active_cell_iterator
+	cell = dof_handler.begin_active(),
+	endc = dof_handler.end();
+	for (; cell!=endc; ++cell)
+	{
+		// Apply boundary_indicators to the faces given the boundary conditions
+		// Check if the center of the face is on one of the given boundaries and set its boundary indicator
+		// In the case it is not, the boundary indicator will remain 0
+		for (unsigned int face = 0; face<GeometryInfo<dim>::faces_per_cell; face++)
+			for (unsigned int boundary_index = 0; boundary_index < boundaries->size(); boundary_index++)
+				if ((*boundaries)[boundary_index]->point_on_geometry(cell->face(face)->center())) {
+					cell->face(face)->set_boundary_indicator((*boundaries)[boundary_index]->get_id()); // TODO: Should this be set_all_boundary_indicators?
+					if (verbosity == DEBUG_V) {
+						std::cout << "Setting boundary id " << (*boundaries)[boundary_index]->get_id() << " at face " << face << " with center: (";
+						for (int i = 0; i < dim; i++)
+							std::cout << cell->face(face)->center()(i) << ", ";
+						std::cout << ")" << std::endl;
+					}
+				}
+
+		fe_values.reinit (cell);
+		cell_matrix = 0;
+		cell_rhs = 0;
+
+		for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
+		{
+			for (unsigned int i=0; i<dofs_per_cell; ++i)
+			{
+				for (unsigned int j=0; j<dofs_per_cell; ++j)
+					cell_matrix(i,j) += (fe_values.shape_grad (i, q_point) *
+							fe_values.shape_grad (j, q_point) *
+							fe_values.JxW (q_point));
+
+				cell_rhs(i) += (fe_values.shape_value (i, q_point) *
+							right_hand_side.value (fe_values.quadrature_point (q_point)) *
+							fe_values.JxW (q_point));
+			}
+		}
+
+		// Loop over faces and apply Nuemman BC's
+		for (unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell; face++) {
+			if (cell->face(face)->at_boundary()) {
+				for (unsigned int flux_bc_index = 0; flux_bc_index < flux_bcs.size(); flux_bc_index++) {
+					if (cell->face(face)->boundary_indicator() == flux_bcs[flux_bc_index]->get_id()) {
+						fe_face_values.reinit(cell, face);
+						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
+							const double neumann_value = flux_bcs[flux_bc_index]->value(fe_face_values.quadrature_point(q_point));
+
+							for (unsigned int i=0; i<dofs_per_cell; ++i)
+								cell_rhs(i) += (neumann_value * fe_face_values.shape_value(i,q_point) * fe_face_values.JxW(q_point));
+						}
+					}
+				}
+			}
+		}
+
+		cell->get_dof_indices (local_dof_indices);
+		for (unsigned int i=0; i<dofs_per_cell; ++i)
+		{
+			for (unsigned int j=0; j<dofs_per_cell; ++j)
+				system_matrix.add (local_dof_indices[i],
+							local_dof_indices[j],
+							cell_matrix(i,j));
+
+			system_rhs(local_dof_indices[i]) += cell_rhs(i);
+		}
+	}
+	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
+} // assemble_system
+
 }
 
 #endif /* THERMALELASTICITYPROBLEM_H_ */

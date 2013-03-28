@@ -223,6 +223,9 @@ void ThermalProblem<dim>::assemble_system()
 	Vector<double>       cell_rhs (dofs_per_cell);
 
 	std::vector<unsigned int> local_dof_indices (dofs_per_cell);
+
+	const FEValuesExtractors::Scalar temperature(0);
+	const FEValuesExtractors::Vector displacement(1);
 	Status("Completed initialization of assembly variables.", verbosity, MAX_V);
 
 	Status("Starting the cell loop in assembly.", verbosity, MAX_V);
