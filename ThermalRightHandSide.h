@@ -5,8 +5,8 @@
  *      Author: kballard
  */
 
-#ifndef RIGHTHANDSIDE_H_
-#define RIGHTHANDSIDE_H_
+#ifndef THERMALRIGHTHANDSIDE_H_
+#define THERMALRIGHTHANDSIDE_H_
 
 #include <deal.II/base/function.h>
 

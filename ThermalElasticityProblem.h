@@ -34,14 +34,22 @@
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_q.h>
 
+// General classes
 #include "BoundaryCondition.h"
 #include "BoundaryGeometry.h"
-#include "DisplacementBoundary.h"
-#include "TractionBoundary.h"
-#include "ElasticityRightHandSide.h"
-#include "IsotropicMaterial.h"
 #include "ScriptReader.h"
 #include "Utility.h"
+
+// Classes for Thermal
+#include "TemperatureBoundary.h"
+#include "FluxBoundary.h"
+#include "ThermalRightHandSide.h"
+
+// Classes for Elasticity
+#include "DisplacementBoundary.h"
+#include "TractionBoundary.h"
+#include "IsotropicMaterial.h"
+#include "ElasticityRightHandSide.h"
 
 #include <fstream>
 #include <iostream>
@@ -260,7 +268,7 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 
 // Private method: assemble_system
 template<int dim>
-void ThermalProblem<dim>::assemble_system()
+void ThermalElasticityProblem<dim>::assemble_system()
 {
 	Status("Starting assemble_system.", verbosity, MIN_V);
 
@@ -268,7 +276,8 @@ void ThermalProblem<dim>::assemble_system()
 	QGauss<dim>  quadrature_formula(2);
 	QGauss<dim-1> face_quadrature_formula(2);
 
-	const ThermalRightHandSide<dim> right_hand_side;
+	const FEValuesExtractors::Scalar t_extract(0);
+	const FEValuesExtractors::Vector u_extract(1);
 
 	FEValues<dim> fe_values (fe, quadrature_formula,
 			update_values   | update_gradients |
@@ -287,8 +296,9 @@ void ThermalProblem<dim>::assemble_system()
 
 	std::vector<unsigned int> local_dof_indices (dofs_per_cell);
 
-	const ThermalRightHandSide<dim> therm_rhs;
-	std::vector<double> therm_rhs_values;
+	const ThermalRightHandSide<dim> thermal_rhs;
+	const ElasticityRightHandSide<dim> elastic_rhs;
+	std::vector<Vector<double> > elastic_rhs_values (n_q_points, Vector<double>(dim));
 	Status("Completed initialization of assembly variables.", verbosity, MAX_V);
 
 	Status("Starting the cell loop in assembly.", verbosity, MAX_V);
@@ -316,32 +326,85 @@ void ThermalProblem<dim>::assemble_system()
 		cell_matrix = 0;
 		cell_rhs = 0;
 
+		// Copy the right hand side terms for the elasticity to a vector to be used in this cell's assembly
+		elastic_rhs.vector_value_list (fe_values.get_quadrature_points(), elastic_rhs_values);
+
+		// Get cell's material properties
+		double lambda = 0;
+		double mu = 0;
+		Tensor<2, 3> alpha;
+
+		bool mat_found = false;
+		for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
+			if (materials[mat_ind].get_id() == cell->material_id()) {
+				lambda = materials[mat_ind].get_lambda();
+				mu = materials[mat_ind].get_mu();
+				alpha = materials[mat_ind].get_alpha();
+				mat_found = true;
+				break;
+			}
+		Assert(mat_found, ExcMessage("Material not found in assembly."))
+
+		// Loop over the quad points of the cell and assemble the matrix and rhs
 		for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 		{
 			for (unsigned int i=0; i<dofs_per_cell; ++i)
 			{
+				const double phi_i_t = fe_values[t_extract].value(i, q);
+				const double div_phi_i_t = fe_values[t_extract].divergence(i, q);
+				const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q);
+				const Tensor<1,dim>  div_phi_i_u = fe_values[u_extract].divergence(i, q);
 				for (unsigned int j=0; j<dofs_per_cell; ++j)
-					cell_matrix(i,j) += (fe_values.shape_grad (i, q_point) *
-							fe_values.shape_grad (j, q_point) *
-							fe_values.JxW (q_point));
+				{
+					const double phi_j_t = fe_values[t_extract].value(j, q);
+					const double div_phi_j_t = fe_values[t_extract].divergence(j, q);
+					const Tensor<1,dim>  phi_j_u = fe_values[u_extract].value(j, q);
+					const Tensor<1,dim>  div_phi_j_u = fe_values[u_extract].divergence(j, q);
+					cell_matrix(i,j) += (div_phi_i_t * div_phi_j_t
+							+ div_phi_i_u[i] * div_phi_j_u[j] * lambda
+							+ div_phi_i_u[j] * div_phi_j_u[i] * mu
+							+ ((i == j) ? (div_phi_i_u * div_phi_j_u * mu)  : 0)
+							) *
+							fe_values.JxW (q_point);
+				}
 
-				cell_rhs(i) += (fe_values.shape_value (i, q_point) *
-							right_hand_side.value (fe_values.quadrature_point (q_point)) *
-							fe_values.JxW (q_point));
+				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point))
+							+ phi_i_u[i] * elastic_rhs_values[q_point](i)
+							) * fe_values.JxW (q_point);
 			}
 		}
 
 		// Loop over faces and apply Nuemman BC's
 		for (unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell; face++) {
 			if (cell->face(face)->at_boundary()) {
+				// Apply Nuemman BC for thermal flux
 				for (unsigned int flux_bc_index = 0; flux_bc_index < flux_bcs.size(); flux_bc_index++) {
 					if (cell->face(face)->boundary_indicator() == flux_bcs[flux_bc_index]->get_id()) {
 						fe_face_values.reinit(cell, face);
 						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
-							const double neumann_value = flux_bcs[flux_bc_index]->value(fe_face_values.quadrature_point(q_point));
+							const double flux_value = flux_bcs[flux_bc_index]->value(fe_face_values.quadrature_point(q_point));
 
-							for (unsigned int i=0; i<dofs_per_cell; ++i)
-								cell_rhs(i) += (neumann_value * fe_face_values.shape_value(i,q_point) * fe_face_values.JxW(q_point));
+							for (unsigned int i=0; i<dofs_per_cell; ++i) {
+								const double phi_i_t = fe_values[t_extract].value(i, q);
+
+								cell_rhs(i) += phi_i_t * flux_value * fe_face_values.JxW(q_point);
+							}
+						}
+					}
+				}
+
+				// Apply Nuemman BC for traction
+				for (unsigned int traction_bc_index = 0; traction_bc_index < traction_bcs.size(); traction_bc_index++) {
+					if (cell->face(face)->boundary_indicator() == flux_bcs[flux_bc_index]->get_id()) {
+						fe_face_values.reinit(cell, face);
+						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
+							const double traction_value = traction_bcs[traction_bc_index]->value(fe_face_values.quadrature_point(q_point));
+
+							for (unsigned int i=0; i<dofs_per_cell; ++i) {
+								const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q);
+
+								cell_rhs(i) += phi_i_u[i] * traction_value * fe_face_values.JxW(q_point);
+							}
 						}
 					}
 				}
@@ -360,7 +423,99 @@ void ThermalProblem<dim>::assemble_system()
 		}
 	}
 	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
+
+	hanging_node_constraints.condense(system_matrix);
+	hanging_node_constraints.condense(system_rhs);
+
+	// TODO: Figure out how to do this for block
+	for (unsigned int i = 0; i < displacement_bcs.size(); i++) {
+		std::map<unsigned int,double> boundary_values_map;
+		VectorTools::interpolate_boundary_values (dof_handler,
+					displacement_bcs[i]->get_id(),
+					*displacement_bcs[i],
+					boundary_values_map);
+
+		MatrixTools::apply_boundary_values (boundary_values_map,
+			  system_matrix,
+			  solution,
+			  system_rhs);
+	}
+
+	Status("Completed assemble_system.", verbosity, MIN_V);
 } // assemble_system
+
+template <int dim>
+void ThermalElasticityProblem<dim>::solve ()
+{
+	SolverControl           solver_control (1000, 1e-12);
+	SolverCG<>              cg (solver_control);
+
+	// First solve for the temperatures
+	cg.solve(system_matrix.bloack(0, 0), solution.block(0), system_rhs.block(0), PreconditionIdentity());
+	hanging_node_constraints.distribute(solution.block(0));
+
+	// Now modify the rhs of the displacement equation using the solution
+	Vector<double>       cell_rhs (dofs_per_cell);
+	typename DoFHandler<dim>::active_cell_iterator
+	cell = dof_handler.begin_active(),
+	endc = dof_handler.end();
+	for (; cell!=endc; ++cell)
+	{
+		fe_values.reinit (cell);
+		cell_rhs = 0;
+
+		// Get cell's material properties
+		double lambda = 0;
+		double mu = 0;
+		Tensor<2, 3> alpha;
+
+		bool mat_found = false;
+		for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
+			if (materials[mat_ind].get_id() == cell->material_id()) {
+				lambda = materials[mat_ind].get_lambda();
+				mu = materials[mat_ind].get_mu();
+				alpha = materials[mat_ind].get_alpha();
+				mat_found = true;
+				break;
+			}
+		Assert(mat_found, ExcMessage("Material not found in assembly."))
+
+		// Compute the thermal gradients
+		std::vector<Tensor< 1, dim>> thermal_grads;
+		thermal_grads.resize(n_q_points);
+		fe_values.get_function_gradients(solution, thermal_grads);
+
+		// Loop over the quad points of the cell and assemble the matrix and rhs
+		for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
+		{
+			for (unsigned int i=0; i<dofs_per_cell; ++i)
+			{
+				const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q);
+
+				// Subtract the first part of the thermal rhs contribution (lambda*alpha_kk*thermal_grad_i)
+				cell_rhs(i) -= phi_i_u[i] * lambda * (alpha[0][0] + alpha[1][1] + alpha[2][2]) * thermal_grads[q_point][i] * fe_values.JxW (q_point);
+				for (unsigned int j=0; j<dofs_per_cell; ++j)
+				{
+					cell_rhs(i) -= phi_i_u[i] * mu *
+								(alpha[i][j] * thermal_grads[grad_index][q_point][j]
+								+ alpha[j][i] * thermal_grads[grad_index][q_point][j]
+								) * fe_values.JxW (q_point);
+				}
+			}
+		}
+
+		// Map values to global matrix and rhs
+		cell->get_dof_indices(local_dof_indices);
+		for (unsigned int i=0; i<dofs_per_cell; ++i)
+		{
+			system_rhs(local_dof_indices[i]) += cell_rhs(i);
+		}
+	}
+
+	// Now solve for the displacements
+	PreconditionSSOR<> preconditioner;
+	preconditioner.initialize(system_matrix.block(0, 0), 1.2);
+} // solve
 
 }
 
