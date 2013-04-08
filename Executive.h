@@ -13,8 +13,7 @@
 #include <deal.II/grid/tria_accessor.h>
 #include <deal.II/grid/tria_iterator.h>
 
-#include "ElasticityProblem.h"
-#include "ThermalProblem.h"
+#include "ThermalElasticityProblem.h"
 #include "BoundaryGeometry.h"
 #include "ScriptReader.h"
 
@@ -41,11 +40,7 @@ private:
 	std::vector<BoundaryGeometry<dim> *> *boundaries;
 	ScriptReader* 		sr;
 
-	ElasticityProblem<dim>	elasticity_problem;
-	ThermalProblem<dim>		thermal_problem;
-
-	std::vector<std::vector<Tensor< 1, dim>>> * thermal_grads;
-	Vector<double> * thermal_sol;
+	ThermalElasticityProblem<dim>	te_problem;
 
 	// State variables
 	bool mesh_initialized;
@@ -53,7 +48,7 @@ private:
 
 // Constructor
 template<int dim>
-Executive<dim>::Executive() : elasticity_problem(&triangulation), thermal_problem(&triangulation)
+Executive<dim>::Executive() : te_problem(&triangulation)
 {
 	// Make sure the analysis only exists for 2d and 3d
 	Assert (dim == 2 || dim == 3, ExcNotImplemented());
@@ -63,9 +58,6 @@ Executive<dim>::Executive() : elasticity_problem(&triangulation), thermal_proble
 	sr = 0;
 
 	mesh_initialized = false;
-
-	thermal_grads = new std::vector<std::vector<Tensor< 1, dim>>>();
-	thermal_sol = new Vector<double>();
 }
 
 // Destructor
@@ -158,9 +150,7 @@ void Executive<dim>::run(ScriptReader *script_reader)
 				}
 				else {
 					bool process_result = false;
-					process_result = elasticity_problem.process_bc(tokens);
-					if (process_result == false)
-						process_result = thermal_problem.process_bc(tokens);
+					process_result = te_problem.process_bc(tokens);
 					if (process_result == false)
 						Assert(false, ExcNotImplemented())
 				}
@@ -168,21 +158,14 @@ void Executive<dim>::run(ScriptReader *script_reader)
 		} // ReadBCs
 		else { // If command is not recognized by executive, pass to elasticity and thermal problems to see if they can use it
 			bool process_result = false;
-			process_result = elasticity_problem.process_cmd(tokens);
-			if (process_result == false)
-				process_result = thermal_problem.process_cmd(tokens);
+			process_result = te_problem.process_cmd(tokens);
 			if (process_result == false)
 				Assert(false, ExcNotImplemented()) // The executive, elasticity problem, and thermal problem cannot use it
 		}
 	}
 
-	// Let the thermal problem solve
-	thermal_problem.run(boundaries);
-	thermal_sol = thermal_problem.get_thermal_sol();
-	thermal_grads = thermal_problem.get_thermal_grad();
-
-	// Solve the elasticity problem
-	elasticity_problem.run(boundaries, thermal_sol, thermal_grads);
+	// Solve the problem
+	te_problem.run(boundaries);
 }
 
 // Private method: make_grid
