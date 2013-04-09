@@ -28,7 +28,7 @@ public:
 
 	virtual void vector_value(const Point<dim> &p, Vector<double>   &values) const;
 
-	virtual void vector_value_list(const std::vector<Point<dim>> &points, std::vector<Vector<double>>   &value_list) const;
+	virtual void vector_value_list(const std::vector<Point<dim> > &points, std::vector<Vector<double> >   &value_list) const;
 
 private:
 	int bound_id;
@@ -60,7 +60,7 @@ void TractionBoundary<dim>::vector_value (const Point<dim> &p, Vector<double> &v
 }
 
 template <int dim>
-void TractionBoundary<dim>::vector_value_list (const std::vector<Point<dim>> &points, std::vector<Vector<double>> &value_list) const
+void TractionBoundary<dim>::vector_value_list (const std::vector<Point<dim> > &points, std::vector<Vector<double> > &value_list) const
 {
 	// Make sure the number of points match the number of value vectors passed
 	Assert (value_list.size() == points.size(), ExcDimensionMismatch (value_list.size(), points.size()));

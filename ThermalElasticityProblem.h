@@ -234,6 +234,8 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 	const unsigned int n_t = dofs_per_component[0], n_u = dofs_per_component[1];
 	const unsigned int n_couplings = dof_handler.max_couplings_between_dofs();
 
+	std::cout << n_t << " dims for temperature and " << n_u << " dims for displacement" << '\n';
+
 	// Deal with the hanging nodes
 	hanging_node_constraints.clear();
 	DoFTools::make_hanging_node_constraints (dof_handler, hanging_node_constraints);
@@ -358,19 +360,20 @@ void ThermalElasticityProblem<dim>::assemble_system()
 				const double phi_i_t = fe_values[t_extract].value(i, q_point);
 				const Tensor<1,dim>  grad_phi_i_t = fe_values[t_extract].gradient(i, q_point);
 				const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
-				const Tensor<1,dim>  grad_phi_i_u = fe_values[u_extract].gradient(i, q_point);
+				const Tensor<2,dim>  grad_phi_i_u = fe_values[u_extract].gradient(i, q_point);
+				std::cout << grad_phi_i_u << '\n';
 				for (unsigned int j=0; j<dofs_per_cell; ++j)
 				{
 					//const double phi_j_t = fe_values[t_extract].value(j, q_point);
 					const Tensor<1,dim>  grad_phi_j_t = fe_values[t_extract].gradient(j, q_point);
 					const Tensor<1,dim>  phi_j_u = fe_values[u_extract].value(j, q_point);
-					const Tensor<1,dim>  grad_phi_j_u = fe_values[u_extract].gradient(j, q_point);
+					const Tensor<2,dim>  grad_phi_j_u = fe_values[u_extract].gradient(j, q_point);
 					cell_matrix(i,j) += (grad_phi_i_t * grad_phi_j_t
-							+ phi_i_u[i] * mu * alpha[i][j] * grad_phi_j_t
-							+ phi_i_u[i] * mu * alpha[j][i] * grad_phi_j_t
-							+ grad_phi_i_u[i] * grad_phi_j_u[j] * lambda
-							+ grad_phi_i_u[j] * grad_phi_j_u[i] * mu
-							+ ((i == j) ? (grad_phi_i_u * grad_phi_j_u * mu)  : 0)
+							+ phi_i_u[i] * mu * alpha[i][j] * grad_phi_j_t[j]
+							+ phi_i_u[i] * mu * alpha[j][i] * grad_phi_j_t[j]
+							+ grad_phi_i_u[i][i] * grad_phi_j_u[j][j] * lambda
+							+ grad_phi_i_u[j][j] * grad_phi_j_u[i][i] * mu
+							+ ((i == j) ? (grad_phi_i_u[i] * grad_phi_j_u[i] * mu)  : 0)
 							) *
 							fe_values.JxW (q_point);
 				}

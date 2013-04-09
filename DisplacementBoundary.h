@@ -60,7 +60,7 @@ void DisplacementBoundary<dim>::vector_value (const Point<dim> &p, Vector<double
 }
 
 template <int dim>
-void DisplacementBoundary<dim>::vector_value_list (const std::vector<Point<dim>> &points, std::vector<Vector<double>> &value_list) const
+void DisplacementBoundary<dim>::vector_value_list (const std::vector<Point<dim> > &points, std::vector<Vector<double> > &value_list) const
 {
 	// Make sure the number of points match the number of value vectors passed
 	Assert (value_list.size() == points.size(), ExcDimensionMismatch (value_list.size(), points.size()));
