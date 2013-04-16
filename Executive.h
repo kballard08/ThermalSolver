@@ -97,6 +97,7 @@ void Executive<dim>::run(ScriptReader *script_reader)
 		else if (tokens[0] == "SetVerbosity") {
 			Assert(tokens.size() == 2, ExcMessage("The input line SetVerbosity expects an argument for the verbosity level to set."))
 			verbosity = (Verbosity)atoi(tokens[1].c_str());
+			te_problem.process_cmd(tokens);
 		}
 		else if (tokens[0] == "ReadBoundaries") { // ReadBoundaries
 			while (sr->get_next_line(tokens)) {
@@ -177,7 +178,7 @@ void Executive<dim>::make_grid_test()
 	// For now just generate cube
 	// Later include functionality to read in a mesh file?
 	GridGenerator::hyper_cube(triangulation, -1, 1);
-	triangulation.refine_global(4);
+	triangulation.refine_global(1);
 
 	// Update state information
 	mesh_initialized = true;

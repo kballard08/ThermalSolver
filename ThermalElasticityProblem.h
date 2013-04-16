@@ -37,24 +37,21 @@
 #include <deal.II/fe/fe_q.h>
 
 // General classes
-#include "BoundaryCondition.h"
 #include "BoundaryGeometry.h"
 #include "ScriptReader.h"
 #include "Utility.h"
+#include "VectorBoundary.h"
 
 // Classes for Thermal
-#include "TemperatureBoundary.h"
-#include "FluxBoundary.h"
 #include "ThermalRightHandSide.h"
 
 // Classes for Elasticity
-#include "DisplacementBoundary.h"
-#include "TractionBoundary.h"
 #include "IsotropicMaterial.h"
 #include "ElasticityRightHandSide.h"
 
 #include <fstream>
 #include <iostream>
+#include <iterator>
 
 namespace FEASolverNS
 {
@@ -80,6 +77,7 @@ private:
 	void output_results () const;
 
 	Verbosity verbosity;
+	unsigned int n_comp;
 
 	Triangulation<dim>  *triangulation;
 	FESystem<dim>       fe;
@@ -87,12 +85,12 @@ private:
 	ConstraintMatrix    hanging_node_constraints;
 
 	std::vector<BoundaryGeometry<dim> *> * boundaries;
-	std::vector<TemperatureBoundary<dim> *> temperature_bcs;
-	std::vector<FluxBoundary<dim> *> flux_bcs;
-	std::vector<DisplacementBoundary<dim> *> displacement_bcs;
-	std::vector<TractionBoundary<dim> *> traction_bcs;
+	std::vector<VectorBoundary<dim> *> temperature_bcs;
+	std::vector<VectorBoundary<dim> *> flux_bcs;
+	std::vector<VectorBoundary<dim> *> displacement_bcs;
+	std::vector<VectorBoundary<dim> *> traction_bcs;
 
-	std::vector<IsotropicMaterial> materials;
+	std::vector<IsotropicMaterial<dim> > materials;
 
 	BlockSparsityPattern sparsity_pattern;
 	BlockSparseMatrix<double> system_matrix;
@@ -104,8 +102,9 @@ private:
 template<int dim>
 ThermalElasticityProblem<dim>::ThermalElasticityProblem(Triangulation<dim> *triag) : fe(FE_Q<dim>(1), 1, FE_Q<dim>(1), dim), dof_handler(*triag) {
 	triangulation = triag;
-	verbosity = MAX_V;
+	verbosity = MIN_V;
 	boundaries = 0;
+	n_comp = fe.n_components();
 }
 
 // Destructor
@@ -140,10 +139,13 @@ bool ThermalElasticityProblem<dim>::process_cmd(std::vector<std::string> tokens)
 		Assert(tokens.size() == 5, ExcMessage("IsotropicMaterial command in the input script did not meet the expected parameters of material_id lambda mu alpha."))
 		// Expected tokens are:
 		// material_id lambda mu alpha
-		materials.push_back(IsotropicMaterial(atoi(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()), atof(tokens[4].c_str())));
+		materials.push_back(IsotropicMaterial<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()), atof(tokens[4].c_str())));
+	}
+	else if (tokens[0] == "SetVerbosity") {
+		verbosity = (Verbosity)atoi(tokens[1].c_str());
 	}
 	else {
-		return true;
+		return false;
 	}
 
 	return true;
@@ -153,6 +155,17 @@ bool ThermalElasticityProblem<dim>::process_cmd(std::vector<std::string> tokens)
 template<int dim>
 bool ThermalElasticityProblem<dim>::process_bc(std::vector<std::string> tokens)
 {
+	// Note this is a bit diconcerning, but the components and size of the finite element space must be know here so it will be hard coded
+	// This must be changed if the FESystem is changed in its design
+	// Right now thermal_comps = {0}
+	//           elastic_comps = {1, ..., dim}
+	std::vector<unsigned int> thermal_comps;
+	thermal_comps.push_back(0);
+	std::vector<unsigned int> elastic_comps;
+	for (unsigned int i = 1; i < n_comp; i++)
+		elastic_comps.push_back(i);
+
+
 	if (tokens[0] == "DisplacementBoundary") {
 		std::vector<double> disp_values;
 
@@ -165,7 +178,7 @@ bool ThermalElasticityProblem<dim>::process_bc(std::vector<std::string> tokens)
 		for (int i = 0; i < dim; i++)
 			disp_values.push_back(atof(tokens[2 + i].c_str()));
 
-		DisplacementBoundary<dim> * bc_p = new DisplacementBoundary<dim>(atoi(tokens[1].c_str()), disp_values);
+		VectorBoundary<dim> * bc_p = new VectorBoundary<dim>(atoi(tokens[1].c_str()), disp_values, elastic_comps, n_comp);
 		displacement_bcs.push_back(bc_p);
 	}
 	else if (tokens[0] == "TractionBoundary") {
@@ -180,19 +193,25 @@ bool ThermalElasticityProblem<dim>::process_bc(std::vector<std::string> tokens)
 		for (int i = 0; i < dim; i++)
 			tract_values.push_back(atof(tokens[2 + i].c_str()));
 
-		TractionBoundary<dim> * bc_p = new TractionBoundary<dim>(atoi(tokens[1].c_str()),tract_values);
+		VectorBoundary<dim> * bc_p = new VectorBoundary<dim>(atoi(tokens[1].c_str()),tract_values, elastic_comps, n_comp);
 		traction_bcs.push_back(bc_p);
 	}
 	else if (tokens[0] == "TemperatureBoundary") {
 		// Expected tokens for 2d and 3d are:
 		// boundary_id value
-		TemperatureBoundary<dim> * bc_p = new TemperatureBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
+		std::vector<double> temp_values;
+		temp_values.push_back(atof(tokens[2].c_str()));
+
+		VectorBoundary<dim> * bc_p = new VectorBoundary<dim>(atoi(tokens[1].c_str()), temp_values, thermal_comps, n_comp);
 		temperature_bcs.push_back(bc_p);
 	}
 	else if (tokens[0] == "FluxBoundary") {
 		// Expected tokens for 2d and 3d are:
 		// boundary_id value
-		FluxBoundary<dim> * bc_p = new FluxBoundary<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()));
+		std::vector<double> flux_values;
+		flux_values.push_back(atof(tokens[2].c_str()));
+
+		VectorBoundary<dim> * bc_p = new VectorBoundary<dim>(atoi(tokens[1].c_str()), flux_values, thermal_comps, n_comp);
 		flux_bcs.push_back(bc_p);
 	}
 	else {
@@ -225,21 +244,33 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 	dof_handler.distribute_dofs (fe);
 	DoFRenumbering::component_wise (dof_handler);
 
-	std::cout << "   Number of degrees o freedom: " << dof_handler.n_dofs() << "\n";
+	std::cout << "   Number of degrees of freedom: " << dof_handler.n_dofs() << "\n";
 
 	std::vector<unsigned int> dofs_per_component (dim+1);
 	DoFTools::count_dofs_per_component (dof_handler, dofs_per_component);
+
+	// Output for debug purposes
+	if (verbosity >= DEBUG_V) {
+		std::cout << "Dof's Per Component:" << "\n";
+		for (unsigned int i = 0; i < dofs_per_component.size(); i++) {
+			std::cout << "[" << i << "] " << dofs_per_component[i] << "\n";
+		}
+	}
+
+	// Loop over indicies 1..dim+1 to get the dof for the displacements
+	unsigned int n_u_nc = 0;
+	for (unsigned int i = 1; i < dim + 1; i++)
+		n_u_nc += dofs_per_component[i];
 	// Number of dof for temperature (t) and displacement (u)
-	// Is this neccessary?  I guess if different elements are used later
-	const unsigned int n_t = dofs_per_component[0], n_u = dofs_per_component[1];
+	const unsigned int n_t = dofs_per_component[0], n_u = n_u_nc;
 	const unsigned int n_couplings = dof_handler.max_couplings_between_dofs();
 
 	std::cout << n_t << " dims for temperature and " << n_u << " dims for displacement" << '\n';
 
 	// Deal with the hanging nodes
-	hanging_node_constraints.clear();
-	DoFTools::make_hanging_node_constraints (dof_handler, hanging_node_constraints);
-	hanging_node_constraints.close();
+	//hanging_node_constraints.clear();
+	//DoFTools::make_hanging_node_constraints (dof_handler, hanging_node_constraints);
+	//hanging_node_constraints.close();
 
 	// Create sparsity pattern
 	// [ thermal stiffness terms         , thermal terms from deformation ] * [ t ] = [ heat generation terms ]
@@ -253,7 +284,7 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 
 	// Create and compress
 	DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern);
-	hanging_node_constraints.condense (sparsity_pattern);
+	//hanging_node_constraints.condense (sparsity_pattern);
 	sparsity_pattern.compress();
 
 	// Create solution and rhs vectors
@@ -336,7 +367,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 		// Get cell's material properties
 		double lambda = 0;
 		double mu = 0;
-		Tensor<2, 3> alpha;
+		Tensor<2, dim> alpha;
 
 		bool mat_found = false;
 		for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
@@ -353,6 +384,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 		// Which one is it???
 		// The shape_grad only returns the nonzero values
 		// Loop over the quad points of the cell and assemble the matrix and rhs
+		// See http://www.dealii.org/developer/doxygen/deal.II/group__vector__valued.html end of section "An alternative approach"
 		for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 		{
 			for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -360,27 +392,29 @@ void ThermalElasticityProblem<dim>::assemble_system()
 				const double phi_i_t = fe_values[t_extract].value(i, q_point);
 				const Tensor<1,dim>  grad_phi_i_t = fe_values[t_extract].gradient(i, q_point);
 				const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
-				const Tensor<2,dim>  grad_phi_i_u = fe_values[u_extract].gradient(i, q_point);
-				std::cout << grad_phi_i_u << '\n';
+				//const Tensor<2,dim>  grad_phi_i_u = fe_values[u_extract].gradient(i, q_point);
+				const SymmetricTensor<2,dim> symgrad_phi_i_u = fe_values[u_extract].symmetric_gradient (i, q_point);
+				const double div_phi_i_u = fe_values[u_extract].divergence (i, q_point);
 				for (unsigned int j=0; j<dofs_per_cell; ++j)
 				{
 					//const double phi_j_t = fe_values[t_extract].value(j, q_point);
 					const Tensor<1,dim>  grad_phi_j_t = fe_values[t_extract].gradient(j, q_point);
-					const Tensor<1,dim>  phi_j_u = fe_values[u_extract].value(j, q_point);
-					const Tensor<2,dim>  grad_phi_j_u = fe_values[u_extract].gradient(j, q_point);
+					//const Tensor<1,dim>  phi_j_u = fe_values[u_extract].value(j, q_point);
+					//const Tensor<2,dim>  grad_phi_j_u = fe_values[u_extract].gradient(j, q_point);
+					const SymmetricTensor<2,dim> symgrad_phi_j_u = fe_values[u_extract].symmetric_gradient (j, q_point);
+					const double div_phi_j_u = fe_values[u_extract].divergence (j, q_point);
 					cell_matrix(i,j) += (grad_phi_i_t * grad_phi_j_t
-							+ phi_i_u[i] * mu * alpha[i][j] * grad_phi_j_t[j]
-							+ phi_i_u[i] * mu * alpha[j][i] * grad_phi_j_t[j]
-							+ grad_phi_i_u[i][i] * grad_phi_j_u[j][j] * lambda
-							+ grad_phi_i_u[j][j] * grad_phi_j_u[i][i] * mu
-							+ ((i == j) ? (grad_phi_i_u[i] * grad_phi_j_u[i] * mu)  : 0)
+							+ phi_i_u * mu * alpha * grad_phi_j_t
+							+ phi_i_u * mu * alpha * grad_phi_j_t
+							+ div_phi_i_u * div_phi_j_u * lambda
+							+ 2 * (symgrad_phi_i_u * symgrad_phi_j_u) * mu
 							) *
 							fe_values.JxW (q_point);
 				}
 
-				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point))
-							+ phi_i_u[i] * elastic_rhs_values[q_point](i)
-							) * fe_values.JxW (q_point);
+				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point)) ) * fe_values.JxW (q_point);
+				for (unsigned int j=0; j<dim; ++j)
+					cell_rhs(i) += phi_i_u[j] * elastic_rhs_values[q_point](j) * fe_values.JxW (q_point);
 			}
 		}
 
@@ -392,7 +426,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 					if (cell->face(face)->boundary_indicator() == flux_bcs[flux_bc_index]->get_id()) {
 						fe_face_values.reinit(cell, face);
 						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
-							const double flux_value = flux_bcs[flux_bc_index]->value(fe_face_values.quadrature_point(q_point));
+							double flux_value = flux_bcs[flux_bc_index]->value(fe_face_values.quadrature_point(q_point));
 
 							for (unsigned int i=0; i<dofs_per_cell; ++i) {
 								const double phi_i_t = fe_values[t_extract].value(i, q_point);
@@ -408,12 +442,15 @@ void ThermalElasticityProblem<dim>::assemble_system()
 					if (cell->face(face)->boundary_indicator() == traction_bcs[traction_bc_index]->get_id()) {
 						fe_face_values.reinit(cell, face);
 						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
-							const double traction_value = traction_bcs[traction_bc_index]->value(fe_face_values.quadrature_point(q_point));
+							Vector<double> traction_value(dim);
+							traction_bcs[traction_bc_index]->vector_value(fe_face_values.quadrature_point(q_point), traction_value);
 
 							for (unsigned int i=0; i<dofs_per_cell; ++i) {
 								const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
-
-								cell_rhs(i) += phi_i_u[i] * traction_value * fe_face_values.JxW(q_point);
+								double tmp_sum = 0;
+								for (unsigned int j=0; j < dim; j++)
+									tmp_sum += phi_i_u[j] * traction_value[j];
+								cell_rhs(i) += tmp_sum * fe_face_values.JxW(q_point);
 							}
 						}
 					}
@@ -434,16 +471,17 @@ void ThermalElasticityProblem<dim>::assemble_system()
 	}
 	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
 
-	hanging_node_constraints.condense(system_matrix);
-	hanging_node_constraints.condense(system_rhs);
+	//hanging_node_constraints.condense(system_matrix);
+	//hanging_node_constraints.condense(system_rhs);
 
+	// TODO: Consider deriving rhs from TensorFunction rather than just Function, since it is more logical to describe as tensors
 	// Apply Dirchlet BC for temperature
 	ComponentMask temperature_mask = fe.component_mask(t_extract);
-	for (unsigned int i = 0; i < displacement_bcs.size(); i++) {
+	for (unsigned int i = 0; i < temperature_bcs.size(); i++) {
 		std::map<unsigned int,double> boundary_values_map;
 		VectorTools::interpolate_boundary_values (dof_handler,
-					displacement_bcs[i]->get_id(),
-					*displacement_bcs[i],
+					temperature_bcs[i]->get_id(),
+					*temperature_bcs[i],
 					boundary_values_map,
 					temperature_mask);
 
