@@ -1,0 +1,1 @@
+cmake -DDEAL_II_DIR=~/bin/deal.II -DCMAKE_CXX_COMPILER=g++ -DCMAKE_CXX_FLAGS="-std=c++0x" ./
