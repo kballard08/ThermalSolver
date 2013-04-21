@@ -10,6 +10,7 @@
 
 #include "deal.II/base/function.h"
 #include "deal.II/base/tensor_function.h"
+#include <iostream>
 #include <vector>
 
 namespace FEASolverNS
@@ -23,6 +24,8 @@ using namespace dealii;
 // Indices indicate the component indices in the dof_handler that the values correspond to
 
 template<int dim>
+
+
 class VectorBoundary : public Function<dim>
 {
 public:
@@ -38,9 +41,19 @@ public:
 
 	virtual void vector_value_list (const std::vector<Point<dim> > &points, std::vector<Vector<double> >   &value_list) const;
 
-private:
+	virtual void nonzero_vector_value (const Point<dim> &p, Vector<double>   &values) const;
+
+	unsigned int val_size() const { return val.size(); };
+	double val_value(unsigned int i) const { Assert(i >= 0 && i < val.size(), ExcIndexRange(i, 0, val.size())); return val[i]; };
+
+	//friend std::ostream& operator<<(std::ostream& os, const VectorBoundary<dim>& vb);
+protected:
 	int bound_id;
 	std::vector<double> val;
+	std::vector<double> nz_val; // nonzero values, the unmodified values vector passed to the constructor
+	std::vector<bool> comp_mask; // Internally store the component mask for use in applying the boundary conditionsss
+
+
 };
 
 template <int dim>
@@ -48,7 +61,7 @@ VectorBoundary<dim>::VectorBoundary(const int &boundary_id,
 									const std::vector<double> &values,
 									const std::vector<unsigned int> &indices,
 									const unsigned int &n_components)
-: Function<dim>(n_components), bound_id(boundary_id), val(n_components)
+: Function<dim>(n_components), bound_id(boundary_id), val(n_components), nz_val(values), comp_mask(n_components)
 {
 	// Make sure the prescribed values are of the correct dimension
 	Assert(values.size() <= n_components, ExcMessage("The size of the value vector passed to the VectorBoundary must be <= n_components"));
@@ -92,6 +105,30 @@ void VectorBoundary<dim>::vector_value_list (const std::vector<Point<dim> > &poi
 	// Use the vector_value method on each point
     for (unsigned int p=0; p<n_points; ++p)
     	VectorBoundary<dim>::vector_value(points[p], value_list[p]);
+}
+
+template <int dim>
+void VectorBoundary<dim>::nonzero_vector_value (const Point<dim> &p, Vector<double> &values) const
+{
+	// Check for dimension mismatch between the force vector (values) and the dimension
+	Assert (values.size() == nz_val.size(), ExcDimensionMismatch (values.size(), nz_val.size()));
+
+	// Just deep copy the val vector
+	for (unsigned int i = 0; i < nz_val.size(); i++)
+			values(i) = nz_val[i];
+}
+
+// Friend class for ostream output
+template <int dim>
+std::ostream& operator<<(std::ostream& os, const VectorBoundary<dim>& vb) {
+	os << "[";
+	for (unsigned int i = 0; i < vb.val_size(); i++) {
+		os << vb.val_value(i);
+		if (i != vb.val_size() - 1)
+			os << ", ";
+	}
+	os << "]";
+	return os;
 }
 
 }
