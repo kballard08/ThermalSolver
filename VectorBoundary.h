@@ -10,6 +10,8 @@
 
 #include "deal.II/base/function.h"
 #include "deal.II/base/tensor_function.h"
+#include "deal.II/fe/component_mask.h"
+#include <map>
 #include <vector>
 
 namespace FEASolverNS
@@ -26,21 +28,26 @@ template<int dim>
 class VectorBoundary : public Function<dim>
 {
 public:
-	// Constructor
+	// Constructor/destructor
 	VectorBoundary(const int &boundary_id, const std::vector<double> &values, const std::vector<unsigned int> &indices, const unsigned int &n_components);
 	virtual ~VectorBoundary() {};
 
-	virtual int get_id() { return bound_id; };
+	// Methods added for boundary class
+	int get_id() { return bound_id; };
+	ComponentMask get_comp_mask() { return ComponentMask(comp_mask); };
+	std::map<unsigned int, double> get_val_map() { return val_map; };
+	void vector_value (const Point<dim> &p, Vector<double>   &values, const int &start_ind, const int &end_ind) const;
 
+	// Virtual Methods from function class
 	virtual double value (const Point<dim> &p, const unsigned int component = 0) const;
-
 	virtual void vector_value (const Point<dim> &p, Vector<double>   &values) const;
-
 	virtual void vector_value_list (const std::vector<Point<dim> > &points, std::vector<Vector<double> >   &value_list) const;
 
 private:
 	int bound_id;
 	std::vector<double> val;
+	std::map<unsigned int, double> val_map;
+	std::vector<bool> comp_mask;
 };
 
 template <int dim>
@@ -48,7 +55,7 @@ VectorBoundary<dim>::VectorBoundary(const int &boundary_id,
 									const std::vector<double> &values,
 									const std::vector<unsigned int> &indices,
 									const unsigned int &n_components)
-: Function<dim>(n_components), bound_id(boundary_id), val(n_components)
+: Function<dim>(n_components), bound_id(boundary_id), val(n_components), comp_mask(n_components, false)
 {
 	// Make sure the prescribed values are of the correct dimension
 	Assert(values.size() <= n_components, ExcMessage("The size of the value vector passed to the VectorBoundary must be <= n_components"));
@@ -59,6 +66,8 @@ VectorBoundary<dim>::VectorBoundary(const int &boundary_id,
 		Assert(indices[i] >= 0 && indices[i] < n_components, ExcIndexRange(indices[i], 0, n_components));
 
 		val[ indices[i] ] = values[i];
+		comp_mask[ indices[i] ] = true;
+		val_map[ indices[i] ] = values[i];
 	}
 }
 
@@ -76,8 +85,24 @@ void VectorBoundary<dim>::vector_value (const Point<dim> &p, Vector<double> &val
 	Assert (values.size() == val.size(), ExcDimensionMismatch (values.size(), val.size()));
 
 	// Just deep copy the val vector
-	for (int i = 0; i < dim; i++)
+	for (unsigned int i = 0; i < val.size(); i++)
 			values(i) = val[i];
+}
+
+template <int dim>
+void VectorBoundary<dim>::vector_value (const Point<dim> &p, Vector<double>   &values, const int &start_ind, const int &end_ind) const
+{
+	int tmp = end_ind - start_ind + 1;
+
+	// Check for dimensions
+	Assert (values.size() == tmp, ExcDimensionMismatch (values.size(), tmp));
+	Assert (start_ind >= 0 && start_ind <= end_ind, ExcIndexRange (start_ind, 0, end_ind+1));
+	Assert (end_ind >= start_ind && end_ind < val.size(), ExcIndexRange (end_ind, start_ind, val.size()));
+
+	// Copy indices [start_ind, end_ind] from val into [0, start_ind-end_ind+1] of values
+	unsigned int values_ind = 0;
+	for (unsigned int i = start_ind; i <= end_ind; i++, values_ind++)
+			values(values_ind) = val[i];
 }
 
 template <int dim>

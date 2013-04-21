@@ -443,7 +443,8 @@ void ThermalElasticityProblem<dim>::assemble_system()
 						fe_face_values.reinit(cell, face);
 						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
 							Vector<double> traction_value(dim);
-							traction_bcs[traction_bc_index]->vector_value(fe_face_values.quadrature_point(q_point), traction_value);
+							// Be aware that if the fe formulation changes, this will need to be updated to the correct indicies
+							traction_bcs[traction_bc_index]->vector_value(fe_face_values.quadrature_point(q_point), traction_value, 1, dim);
 
 							for (unsigned int i=0; i<dofs_per_cell; ++i) {
 								const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
@@ -518,7 +519,7 @@ void ThermalElasticityProblem<dim>::solve ()
 
 	// First solve for the temperatures
 	cg.solve(system_matrix.block(0, 0), solution.block(0), system_rhs.block(0), PreconditionIdentity());
-	hanging_node_constraints.distribute(solution.block(0));
+	//hanging_node_constraints.distribute(solution.block(0));
 
 	/*
 	// Now modify the rhs of the displacement equation using the solution
