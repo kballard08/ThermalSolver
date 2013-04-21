@@ -364,6 +364,15 @@ void ThermalElasticityProblem<dim>::assemble_system()
 		// Copy the right hand side terms for the elasticity to a vector to be used in this cell's assembly
 		elastic_rhs.vector_value_list (fe_values.get_quadrature_points(), elastic_rhs_values);
 
+		// TODO: remove after fixing the bug
+		if (verbosity == DEBUG_V)
+		{
+			std::cout << "elastic_rhs_values:\n";
+			for (unsigned int i = 0; i < elastic_rhs_values.size(); i++)
+				for (unsigned int j = 0; j < elastic_rhs_values[i].size(); j++)
+					std::cout << "(" << i << ", " << j << ")\t" << elastic_rhs_values[i][j] << "\n";
+		}
+
 		// Get cell's material properties
 		double lambda = 0;
 		double mu = 0;
@@ -413,7 +422,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 				}
 
 				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point)) ) * fe_values.JxW (q_point);
-				for (unsigned int j=0; j<dim; ++j)
+				for (unsigned int j=0; j<dim; ++j) {
 					cell_rhs(i) += phi_i_u[j] * elastic_rhs_values[q_point](j) * fe_values.JxW (q_point);
 			}
 		}
@@ -442,9 +451,14 @@ void ThermalElasticityProblem<dim>::assemble_system()
 					if (cell->face(face)->boundary_indicator() == traction_bcs[traction_bc_index]->get_id()) {
 						fe_face_values.reinit(cell, face);
 						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
+							// TODO: Have a method to just get the val vector out of the VectorBoundary
 							Vector<double> traction_value(dim);
+<<<<<<< HEAD
 							// Be aware that if the fe formulation changes, this will need to be updated to the correct indicies
 							traction_bcs[traction_bc_index]->vector_value(fe_face_values.quadrature_point(q_point), traction_value, 1, dim);
+=======
+							traction_bcs[traction_bc_index]->nonzero_vector_value(fe_face_values.quadrature_point(q_point), traction_value);
+>>>>>>> 3cfbf77f4b50b70cb76db466f73a77b6b57980d4
 
 							for (unsigned int i=0; i<dofs_per_cell; ++i) {
 								const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
@@ -492,6 +506,11 @@ void ThermalElasticityProblem<dim>::assemble_system()
 			  system_rhs);
 	}
 
+	std::cout << "RHS (1) in cell:\n";
+	//for (BlockVector<double>::iterator iter = system_rhs.block(1).begin(); iter != system_rhs.block(1).end(); iter++)
+	for (unsigned int i = 0; i < system_rhs.block(1).size(); i++)
+		std::cout << i << ": " << system_rhs.block(1)[i] << "\n";;
+
 	// Apply Dirchlet BC for displacement
 	ComponentMask displacement_mask = fe.component_mask(u_extract);
 	for (unsigned int i = 0; i < displacement_bcs.size(); i++) {
@@ -501,6 +520,8 @@ void ThermalElasticityProblem<dim>::assemble_system()
 					*displacement_bcs[i],
 					boundary_values_map,
 					displacement_mask);
+
+		std::cout << "displacement_bc " << i << " " << *displacement_bcs[i] << "\n";
 
 		MatrixTools::apply_boundary_values (boundary_values_map,
 			  system_matrix,
@@ -514,7 +535,9 @@ void ThermalElasticityProblem<dim>::assemble_system()
 template <int dim>
 void ThermalElasticityProblem<dim>::solve ()
 {
-	SolverControl           solver_control (1000, 1e-12);
+	Status("Starting solve for temperature.", verbosity, MIN_V);
+
+	SolverControl           solver_control (1000, 1e-14);
 	SolverCG<>              cg (solver_control);
 
 	// First solve for the temperatures
@@ -553,37 +576,30 @@ void ThermalElasticityProblem<dim>::solve ()
 		thermal_grads.resize(n_q_points);
 		fe_values.get_function_gradients(solution, thermal_grads);
 
-		// Loop over the quad points of the cell and assemble the matrix and rhs
-		for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
-		{
-			for (unsigned int i=0; i<dofs_per_cell; ++i)
-			{
-				const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q);
-
-				// Subtract the first part of the thermal rhs contribution (lambda*alpha_kk*thermal_grad_i)
-				cell_rhs(i) -= phi_i_u[i] * lambda * (alpha[0][0] + alpha[1][1] + alpha[2][2]) * thermal_grads[q_point][i] * fe_values.JxW (q_point);
-				for (unsigned int j=0; j<dofs_per_cell; ++j)
-				{
-					cell_rhs(i) -= phi_i_u[i] * mu *
-								(alpha[i][j] * thermal_grads[grad_index][q_point][j]
-								+ alpha[j][i] * thermal_grads[grad_index][q_point][j]
-								) * fe_values.JxW (q_point);
-				}
-			}
-		}
-
-		// Map values to global matrix and rhs
-		cell->get_dof_indices(local_dof_indices);
-		for (unsigned int i=0; i<dofs_per_cell; ++i)
-		{
-			system_rhs(local_dof_indices[i]) += cell_rhs(i);
-		}
-	}
-	*/
-
 	// Now solve for the displacements
-	//PreconditionSSOR<> preconditioner;
-	//preconditioner.initialize(system_matrix.block(0, 0), 1.2);
+	//Vector<double> tmp (solution.block(1).size());
+	//system_matrix.block(1, 0).vmult(tmp, solution.block(0));
+	//system_rhs.block(1) -= tmp;
+	// TODO: find a way to clear the tmp vector from memory
+	//tmp.clear();
+
+	if (verbosity >= DEBUG_V) {
+		std::cout << "Block (1, 1):\n";
+		//std::cout << system_matrix.block(1, 1) << "\n";
+		std::cout << "RHS (1):\n";
+		//for (BlockVector<double>::iterator iter = system_rhs.block(1).begin(); iter != system_rhs.block(1).end(); iter++)
+		for (unsigned int i = 0; i < system_rhs.block(1).size(); i++)
+			std::cout << i << ": " << system_rhs.block(1)[i] << "\n";
+	}
+
+	Status("Starting solve for displacement.", verbosity, MIN_V);
+
+	PreconditionSSOR<> preconditioner;
+	preconditioner.initialize(system_matrix.block(1, 1), 1.2);
+	cg.solve(system_matrix.block(1, 1), solution.block(1), system_rhs.block(1), preconditioner);
+	//hanging_node_constraints.distribute(solution.block(1));
+
+	Status("Completed solve for displacement.", verbosity, MIN_V);
 } // solve
 
 template <int dim>
@@ -593,10 +609,15 @@ void ThermalElasticityProblem<dim>::output_results () const
 	switch (dim)
 	{
 	case 2:
-		solution_names.push_back ("t");
+		solution_names.push_back ("temperature");
+		solution_names.push_back ("x_displacement");
+		solution_names.push_back ("y_displacement");
 		break;
 	case 3:
-		solution_names.push_back ("t");
+		solution_names.push_back ("temperature");
+		solution_names.push_back ("x_displacement");
+		solution_names.push_back ("y_displacement");
+		solution_names.push_back ("z_displacement");
 		break;
 	default:
 		Assert (false, ExcNotImplemented());
@@ -604,8 +625,8 @@ void ThermalElasticityProblem<dim>::output_results () const
 	}
 	DataOut<dim> data_out;
 	data_out.attach_dof_handler (dof_handler);
-	data_out.add_data_vector (solution.block(0), solution_names);
-	data_out.build_patches (dim+1);
+	data_out.add_data_vector (solution, solution_names);
+	data_out.build_patches();
 	std::ofstream output ("solution.vtk");
 	data_out.write_vtk(output);
 }

@@ -178,7 +178,7 @@ void Executive<dim>::make_grid_test()
 	// For now just generate cube
 	// Later include functionality to read in a mesh file?
 	GridGenerator::hyper_cube(triangulation, -1, 1);
-	triangulation.refine_global(1);
+	//triangulation.refine_global(1);
 
 	// Update state information
 	mesh_initialized = true;
