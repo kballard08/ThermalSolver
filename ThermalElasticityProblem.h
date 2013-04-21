@@ -424,6 +424,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point)) ) * fe_values.JxW (q_point);
 				for (unsigned int j=0; j<dim; ++j) {
 					cell_rhs(i) += phi_i_u[j] * elastic_rhs_values[q_point](j) * fe_values.JxW (q_point);
+				}
 			}
 		}
 
@@ -453,12 +454,9 @@ void ThermalElasticityProblem<dim>::assemble_system()
 						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
 							// TODO: Have a method to just get the val vector out of the VectorBoundary
 							Vector<double> traction_value(dim);
-<<<<<<< HEAD
+
 							// Be aware that if the fe formulation changes, this will need to be updated to the correct indicies
 							traction_bcs[traction_bc_index]->vector_value(fe_face_values.quadrature_point(q_point), traction_value, 1, dim);
-=======
-							traction_bcs[traction_bc_index]->nonzero_vector_value(fe_face_values.quadrature_point(q_point), traction_value);
->>>>>>> 3cfbf77f4b50b70cb76db466f73a77b6b57980d4
 
 							for (unsigned int i=0; i<dofs_per_cell; ++i) {
 								const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
@@ -471,7 +469,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 					}
 				}
 			}
-		}
+		} // looping over faces
 
 		cell->get_dof_indices (local_dof_indices);
 		for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -544,42 +542,20 @@ void ThermalElasticityProblem<dim>::solve ()
 	cg.solve(system_matrix.block(0, 0), solution.block(0), system_rhs.block(0), PreconditionIdentity());
 	//hanging_node_constraints.distribute(solution.block(0));
 
-	/*
-	// Now modify the rhs of the displacement equation using the solution
-	Vector<double>       cell_rhs (dofs_per_cell);
-	typename DoFHandler<dim>::active_cell_iterator
-	cell = dof_handler.begin_active(),
-	endc = dof_handler.end();
-	for (; cell!=endc; ++cell)
-	{
-		fe_values.reinit (cell);
-		cell_rhs = 0;
-
-		// Get cell's material properties
-		double lambda = 0;
-		double mu = 0;
-		Tensor<2, 3> alpha;
-
-		bool mat_found = false;
-		for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
-			if (materials[mat_ind].get_id() == cell->material_id()) {
-				lambda = materials[mat_ind].get_lambda();
-				mu = materials[mat_ind].get_mu();
-				alpha = materials[mat_ind].get_alpha();
-				mat_found = true;
-				break;
-			}
-		Assert(mat_found, ExcMessage("Material not found in assembly."))
-
-		// Compute the thermal gradients
-		std::vector<Tensor< 1, dim>> thermal_grads;
-		thermal_grads.resize(n_q_points);
-		fe_values.get_function_gradients(solution, thermal_grads);
-
 	// Now solve for the displacements
-	//Vector<double> tmp (solution.block(1).size());
-	//system_matrix.block(1, 0).vmult(tmp, solution.block(0));
-	//system_rhs.block(1) -= tmp;
+	Vector<double> tmp (solution.block(1).size());
+	system_matrix.block(1, 0).vmult(tmp, solution.block(0));
+	system_rhs.block(1) -= tmp;
+	// TODO: remove after fixing the bug
+	if (verbosity == DEBUG_V)
+	{
+		std::cout << "temperatures:\n";
+		for (unsigned int i = 0; i < solution.block(0).size(); i++)
+			std::cout << "(" << i << ")\t" << solution.block(0)[i] << "\n";
+		std::cout << "tmp values:\n";
+		for (unsigned int i = 0; i < tmp.size(); i++)
+			std::cout << "(" << i << ")\t" << tmp[i] << "\n";
+	}
 	// TODO: find a way to clear the tmp vector from memory
 	//tmp.clear();
 

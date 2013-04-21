@@ -28,5 +28,5 @@ ReadBCs
 
 	TractionBoundary 0 0.0 0.0
 	DisplacementBoundary 1 0.0 0.0
-	DisplacementBoundary 2 0.0 0.01
+	TractionBoundary 2 0.0 0.0
 EndBCs
