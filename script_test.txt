@@ -4,8 +4,9 @@ UseDefaultMesh // Default mesh results in hyper_cube (-1, 1)
 
 SetVerbosity 2
 
-// material_id lambda mu
-IsotropicMaterial 0 4.8696e10 26e9 22.3
+// material_id lambda mu alpha k
+// Properties chosen are for aluminum
+IsotropicMaterial 0 48.696e9 26e9 22.3e-6 250
 
 ReadBoundaries
 	// Create line from x = -1 to 1 at y = 1 and assign boundary_id of 1
@@ -14,9 +15,6 @@ ReadBoundaries
 
 	// Create line along boundary that is normal to x-axis at x = -1.0
 	1 0 -1.0 // boundary_id axis value
-
-	// Create line along boundary that is normal to x-axis at x = 1.0
-	2 0 1.0 // boundary_id axis value
 EndBoundaries
 
 ReadBCs
@@ -24,9 +22,7 @@ ReadBCs
 	// boundary_id value
 	TemperatureBoundary 0 100.0
 	TemperatureBoundary 1 100.0
-	TemperatureBoundary 2 100.0
 
 	TractionBoundary 0 0.0 0.0
 	DisplacementBoundary 1 0.0 0.0
-	TractionBoundary 2 0.0 0.0
 EndBCs

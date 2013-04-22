@@ -46,6 +46,7 @@
 #include "ThermalRightHandSide.h"
 
 // Classes for Elasticity
+#include "Material.h"
 #include "IsotropicMaterial.h"
 #include "ElasticityRightHandSide.h"
 
@@ -90,7 +91,7 @@ private:
 	std::vector<VectorBoundary<dim> *> displacement_bcs;
 	std::vector<VectorBoundary<dim> *> traction_bcs;
 
-	std::vector<IsotropicMaterial<dim> > materials;
+	std::vector< Material<dim> > materials;
 
 	BlockSparsityPattern sparsity_pattern;
 	BlockSparseMatrix<double> system_matrix;
@@ -136,10 +137,10 @@ bool ThermalElasticityProblem<dim>::process_cmd(std::vector<std::string> tokens)
 	// TODO: Add support for orthotropic materials
 	if (tokens[0] == "IsotropicMaterial") {
 		Status("Adding an isotropic material.", verbosity, MAX_V);
-		Assert(tokens.size() == 5, ExcMessage("IsotropicMaterial command in the input script did not meet the expected parameters of material_id lambda mu alpha."))
+		Assert(tokens.size() == 6, ExcMessage("IsotropicMaterial command in the input script did not meet the expected parameters of material_id lambda mu alpha k."))
 		// Expected tokens are:
-		// material_id lambda mu alpha
-		materials.push_back(IsotropicMaterial<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()), atof(tokens[4].c_str())));
+		// material_id lambda mu alpha k
+		materials.push_back(IsotropicMaterial<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()), atof(tokens[4].c_str()), atof(tokens[5].c_str())));
 	}
 	else if (tokens[0] == "SetVerbosity") {
 		verbosity = (Verbosity)atoi(tokens[1].c_str());
@@ -374,16 +375,16 @@ void ThermalElasticityProblem<dim>::assemble_system()
 		}
 
 		// Get cell's material properties
-		double lambda = 0;
-		double mu = 0;
-		Tensor<2, dim> alpha;
+		SymmetricTensor<4, dim> stiffness;
+		SymmetricTensor<2, dim> alpha;
+		Tensor<2, dim> k;
 
 		bool mat_found = false;
 		for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
 			if (materials[mat_ind].get_id() == cell->material_id()) {
-				lambda = materials[mat_ind].get_lambda();
-				mu = materials[mat_ind].get_mu();
-				alpha = materials[mat_ind].get_alpha();
+				stiffness = materials[mat_ind].get_stiffness();
+				alpha = materials[mat_ind].get_expansion();
+				k = materials[mat_ind].get_conduction();
 				mat_found = true;
 				break;
 			}
@@ -398,33 +399,32 @@ void ThermalElasticityProblem<dim>::assemble_system()
 		{
 			for (unsigned int i=0; i<dofs_per_cell; ++i)
 			{
+				// Temperature shape function for i
 				const double phi_i_t = fe_values[t_extract].value(i, q_point);
 				const Tensor<1,dim>  grad_phi_i_t = fe_values[t_extract].gradient(i, q_point);
+				// Displacement shape function for i
 				const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
-				//const Tensor<2,dim>  grad_phi_i_u = fe_values[u_extract].gradient(i, q_point);
-				const SymmetricTensor<2,dim> symgrad_phi_i_u = fe_values[u_extract].symmetric_gradient (i, q_point);
-				const double div_phi_i_u = fe_values[u_extract].divergence (i, q_point);
+				const SymmetricTensor<2,dim>  grad_phi_i_u = fe_values[u_extract].symmetric_gradient(i, q_point);
 				for (unsigned int j=0; j<dofs_per_cell; ++j)
 				{
-					//const double phi_j_t = fe_values[t_extract].value(j, q_point);
+					// Temperature shape function for j
+					const double phi_j_t = fe_values[t_extract].value(j, q_point);
 					const Tensor<1,dim>  grad_phi_j_t = fe_values[t_extract].gradient(j, q_point);
-					//const Tensor<1,dim>  phi_j_u = fe_values[u_extract].value(j, q_point);
-					//const Tensor<2,dim>  grad_phi_j_u = fe_values[u_extract].gradient(j, q_point);
-					const SymmetricTensor<2,dim> symgrad_phi_j_u = fe_values[u_extract].symmetric_gradient (j, q_point);
-					const double div_phi_j_u = fe_values[u_extract].divergence (j, q_point);
-					cell_matrix(i,j) += (grad_phi_i_t * grad_phi_j_t
-							+ phi_i_u * mu * alpha * grad_phi_j_t
-							+ phi_i_u * mu * alpha * grad_phi_j_t
-							+ div_phi_i_u * div_phi_j_u * lambda
-							+ 2 * (symgrad_phi_i_u * symgrad_phi_j_u) * mu
+					// Displacement shape function for j
+					const SymmetricTensor<2,dim>  grad_phi_j_u = fe_values[u_extract].symmetric_gradient(j, q_point);
+
+					// TODO: add transient term
+					cell_matrix(i,j) += (grad_phi_i_t * k * grad_phi_j_t
+							+ -1*(grad_phi_i_u * (stiffness * alpha) * phi_j_t)
+							+ grad_phi_i_u * (stiffness * grad_phi_j_u)
 							) *
 							fe_values.JxW (q_point);
 				}
 
-				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point)) ) * fe_values.JxW (q_point);
-				for (unsigned int j=0; j<dim; ++j) {
-					cell_rhs(i) += phi_i_u[j] * elastic_rhs_values[q_point](j) * fe_values.JxW (q_point);
-				}
+				// TODO: add transient term
+				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point))
+							+ phi_i_u * elastic_rhs_values[q_point]
+							) * fe_values.JxW (q_point);
 			}
 		}
 

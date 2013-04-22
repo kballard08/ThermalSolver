@@ -8,38 +8,47 @@
 #ifndef ISOTROPICMATERIAL_H_
 #define ISOTROPICMATERIAL_H_
 
+#include "Material.h"
+#include "Utility.h"
+
 namespace FEASolverNS
 {
 
 template<int dim>
-class IsotropicMaterial
+class IsotropicMaterial : public Material<dim>
 {
 public:
-	IsotropicMaterial(unsigned int material_id, double lambda, double mu, double alpha);
+	IsotropicMaterial(const unsigned int &material_id, const double &lambda, const double &mu, const double &alpha, const double &k);
+	virtual ~IsotropicMaterial() {};
 
-	unsigned int get_id() { return mat_id; }
 	double get_lambda() { return lambda_val; }
 	double get_mu() { return mu_val; }
-	Tensor<2, dim> get_alpha() { return alpha_ten; }
 
 private:
-	unsigned int mat_id;
+	// Isotropic constants
 	double lambda_val, mu_val;
-	// Rank 2 tensor 3 indicies (i.e. a 3x3 matrix)
-	Tensor<2, dim> alpha_ten;
 };
 
 template<int dim>
-IsotropicMaterial<dim>::IsotropicMaterial(unsigned int material_id, double lambda, double mu, double alpha) : mat_id(material_id), lambda_val(lambda), mu_val(mu), alpha_ten()
+IsotropicMaterial<dim>::IsotropicMaterial(const unsigned int &material_id, const double &lambda, const double &mu, const double &alpha, const double &k)
+	: Material<dim>(material_id), lambda_val(lambda), mu_val(mu)
 {
-	for (int i = 0; i < dim; i++) {
-		for (int j = 0; j < dim; j++) {
-			if (i ==j)
-				alpha_ten[i][j] = alpha;
-			else
-				alpha_ten[i][j] = 0.0;
-		}
-	}
+	// Form coefficient of thermal conduction tensor
+	for (int i = 0; i < dim; i++)
+		for (int j = 0; j < dim; j++)
+			Material<dim>::k_tensor[i][j] = k*kron_delta(i,j);
+
+	// Form coefficient of thermal expansion tensor
+	for (int i = 0; i < dim; i++)
+		for (int j = 0; j < dim; j++)
+			Material<dim>::alpha_tensor[i][j] = alpha*kron_delta(i,j);
+
+	// Form stiffness tensor
+	for (int i = 0; i < dim; i++)
+		for (int j = 0; j < dim; j++)
+			for (int k = 0; k < dim; k++)
+				for (int l = 0; l < dim; l++)
+					Material<dim>::stiffness_tensor[i][j][k][l] = lambda*kron_delta(i,j)*kron_delta(k,l) + mu*(kron_delta(i,k)*kron_delta(j,l) + kron_delta(i,l)*kron_delta(j,k));
 }
 
 }
