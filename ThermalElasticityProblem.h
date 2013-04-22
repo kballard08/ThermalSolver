@@ -39,6 +39,7 @@
 // General classes
 #include "BoundaryGeometry.h"
 #include "ScriptReader.h"
+#include "TimeContainer.h"
 #include "Utility.h"
 #include "VectorBoundary.h"
 
@@ -82,8 +83,8 @@ private:
 
 	// Transient variables
 	bool is_transient;
-	double start_time, end_time;
-	int n_time_steps;
+	TimeContainer tc;
+	double initial_temperature;
 
 	Triangulation<dim>  *triangulation;
 	FESystem<dim>       fe;
@@ -101,6 +102,7 @@ private:
 	BlockSparsityPattern sparsity_pattern;
 	BlockSparseMatrix<double> system_matrix;
 	BlockVector<double> solution;
+	BlockVector<double> prev_solution;
 	BlockVector<double> system_rhs;
 };
 
@@ -113,8 +115,7 @@ ThermalElasticityProblem<dim>::ThermalElasticityProblem(Triangulation<dim> *tria
 	n_comp = fe.n_components();
 
 	is_transient = false;
-	start_time = end_time = 0.0;
-	n_time_steps = 0;
+	initial_temperature = 0.0;
 }
 
 // Destructor
@@ -160,11 +161,16 @@ bool ThermalElasticityProblem<dim>::process_cmd(std::vector<std::string> tokens)
 		Assert(tokens.size() == 6, ExcMessage("TransientAnalysis command in the input script did not meet the expected parameters of start_time end_time n_time_steps."))
 		// Expected tokens are:
 		// start_time end_time n_time_steps
-		start_time = atof(tokens[1].c_str());
-		start_time = atof(tokens[2].c_str());
-		n_time_steps = atoi(tokens[3].c_str());
-
+		double start_time = atof(tokens[1].c_str());
+		double end_time = atof(tokens[2].c_str());
+		int n_time_steps = atoi(tokens[3].c_str());
+		tc.initialize(start_time, end_time, n_time_steps);
 		is_transient = true;
+	}
+	else if (tokens[0] =="InitialTemperature") {
+		Assert(tokens.size() == 2, ExcMessage("InitialTemperature expects one arguement for the initial temperature."));
+		// A single argument is for a constant temperature
+		initial_temperature = atof(tokens[1].c_str());
 	}
 	else {
 		return false;
@@ -255,6 +261,14 @@ void ThermalElasticityProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bo
 	assemble_system ();
 	solve ();
 	output_results ();
+
+	if (is_transient) {
+		while (tc.increment_time()) {
+			assemble_system ();
+			solve ();
+			output_results ();
+		}
+	}
 } // run
 
 // Private method: setup_system
@@ -320,6 +334,18 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 	system_rhs.block(1).reinit (n_u);
 	system_rhs.collect_sizes ();
 
+	if (is_transient) {
+		// Create previous temperature vector
+		prev_solution.reinit (2);
+		prev_solution.block(0).reinit (n_t);
+		prev_solution.block(1).reinit (n_u);
+		prev_solution.collect_sizes ();
+
+		// Assign initial temperature
+		for (unsigned int i = 0; i < prev_solution.block(0).size(); i++)
+			prev_solution.block(0)[i] = initial_temperature;
+	}
+
 	Status("Completed setup_system.", verbosity, MIN_V);
 } // setup_system
 
@@ -352,6 +378,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 	Vector<double>       cell_rhs (dofs_per_cell);
 
 	std::vector<unsigned int> local_dof_indices (dofs_per_cell);
+	std::vector<double> local_prev_solution (dofs_per_cell);
 
 	const ThermalRightHandSide<dim> thermal_rhs;
 	const ElasticityRightHandSide<dim> elastic_rhs;
@@ -382,17 +409,15 @@ void ThermalElasticityProblem<dim>::assemble_system()
 		fe_values.reinit (cell);
 		cell_matrix = 0;
 		cell_rhs = 0;
+		cell->get_dof_indices (local_dof_indices);
 
 		// Copy the right hand side terms for the elasticity to a vector to be used in this cell's assembly
 		elastic_rhs.vector_value_list (fe_values.get_quadrature_points(), elastic_rhs_values);
 
-		// TODO: remove after fixing the bug
-		if (verbosity == DEBUG_V)
-		{
-			std::cout << "elastic_rhs_values:\n";
-			for (unsigned int i = 0; i < elastic_rhs_values.size(); i++)
-				for (unsigned int j = 0; j < elastic_rhs_values[i].size(); j++)
-					std::cout << "(" << i << ", " << j << ")\t" << elastic_rhs_values[i][j] << "\n";
+		// If transient get the previous solution
+		if (is_transient) {
+			for (unsigned int i=0; i<dofs_per_cell; ++i)
+				local_prev_solution[i] = prev_solution(local_dof_indices[i]);
 		}
 
 		// Get cell's material properties
@@ -411,9 +436,6 @@ void ThermalElasticityProblem<dim>::assemble_system()
 			}
 		Assert(mat_found, ExcMessage("Material not found in assembly."))
 
-		// TODO: understand the grad_phi_i_u, it returns a rank 2 tensor, but only 1 value should be nonzero
-		// Which one is it???
-		// The shape_grad only returns the nonzero values
 		// Loop over the quad points of the cell and assemble the matrix and rhs
 		// See http://www.dealii.org/developer/doxygen/deal.II/group__vector__valued.html end of section "An alternative approach"
 		for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
@@ -434,18 +456,22 @@ void ThermalElasticityProblem<dim>::assemble_system()
 					// Displacement shape function for j
 					const SymmetricTensor<2,dim>  grad_phi_j_u = fe_values[u_extract].symmetric_gradient(j, q_point);
 
-					// TODO: add transient term
 					cell_matrix(i,j) += (grad_phi_i_t * k * grad_phi_j_t
 							+ -1*(grad_phi_i_u * (stiffness * alpha) * phi_j_t)
 							+ grad_phi_i_u * (stiffness * grad_phi_j_u)
 							) *
 							fe_values.JxW (q_point);
+
+					// Add transient term
+					if (is_transient) {
+						cell_matrix(i,j) += (1/(tc.get_current_time() - tc.get_prev_time())) * phi_i_t * phi_j_t * fe_values.JxW (q_point);
+						cell_rhs(i) += (1/(tc.get_current_time() - tc.get_prev_time())) * phi_i_t * phi_j_t * local_prev_solution[j] * fe_values.JxW (q_point);
 				}
 
-				// TODO: add transient term
 				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point))
 							+ phi_i_u * elastic_rhs_values[q_point]
 							) * fe_values.JxW (q_point);
+				}
 			}
 		}
 
@@ -473,9 +499,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 					if (cell->face(face)->boundary_indicator() == traction_bcs[traction_bc_index]->get_id()) {
 						fe_face_values.reinit(cell, face);
 						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
-							// TODO: Have a method to just get the val vector out of the VectorBoundary
 							Vector<double> traction_value(dim);
-
 							// Be aware that if the fe formulation changes, this will need to be updated to the correct indicies
 							traction_bcs[traction_bc_index]->vector_value(fe_face_values.quadrature_point(q_point), traction_value, 1, dim);
 
@@ -492,7 +516,6 @@ void ThermalElasticityProblem<dim>::assemble_system()
 			}
 		} // looping over faces
 
-		cell->get_dof_indices (local_dof_indices);
 		for (unsigned int i=0; i<dofs_per_cell; ++i)
 		{
 			for (unsigned int j=0; j<dofs_per_cell; ++j)
@@ -567,18 +590,7 @@ void ThermalElasticityProblem<dim>::solve ()
 	Vector<double> tmp (solution.block(1).size());
 	system_matrix.block(1, 0).vmult(tmp, solution.block(0));
 	system_rhs.block(1) -= tmp;
-	// TODO: remove after fixing the bug
-	if (verbosity == DEBUG_V)
-	{
-		std::cout << "temperatures:\n";
-		for (unsigned int i = 0; i < solution.block(0).size(); i++)
-			std::cout << "(" << i << ")\t" << solution.block(0)[i] << "\n";
-		std::cout << "tmp values:\n";
-		for (unsigned int i = 0; i < tmp.size(); i++)
-			std::cout << "(" << i << ")\t" << tmp[i] << "\n";
-	}
-	// TODO: find a way to clear the tmp vector from memory
-	//tmp.clear();
+	tmp.reinit(0);
 
 	if (verbosity >= DEBUG_V) {
 		std::cout << "Block (1, 1):\n";
@@ -597,6 +609,11 @@ void ThermalElasticityProblem<dim>::solve ()
 	//hanging_node_constraints.distribute(solution.block(1));
 
 	Status("Completed solve for displacement.", verbosity, MIN_V);
+
+	if (is_transient) {
+		Status("Saving current solution for next time step.", verbosity, MIN_V);
+		prev_solution.equ(1.0, solution);
+	}
 } // solve
 
 template <int dim>
@@ -624,8 +641,14 @@ void ThermalElasticityProblem<dim>::output_results () const
 	data_out.attach_dof_handler (dof_handler);
 	data_out.add_data_vector (solution, solution_names);
 	data_out.build_patches();
-	std::ofstream output ("solution.vtk");
-	data_out.write_vtk(output);
+	if (is_transient) {
+		std::ofstream output ("solution" + tc.index_str() + ".vtk");
+		data_out.write_vtk(output);
+	}
+	else {
+		std::ofstream output ("solution.vtk");
+		data_out.write_vtk(output);
+	}
 }
 
 
