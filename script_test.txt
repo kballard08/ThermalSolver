@@ -8,6 +8,8 @@ SetVerbosity 2
 // Properties chosen are for aluminum
 IsotropicMaterial 0 48.696e9 26e9 22.3e-6 250
 
+TransientAnalysis 0.0 1.0 4
+
 ReadBoundaries
 	// Create line from x = -1 to 1 at y = 1 and assign boundary_id of 1
 	// In other words, the top of the mesh
