@@ -40,7 +40,8 @@
 #include "BoundaryGeometry.h"
 #include "ScriptReader.h"
 #include "TimeContainer.h"
-#include "TMPostProcessor.h"
+#include "TEDataOut.h"
+#include "TEPostProcessor.h"
 #include "Utility.h"
 #include "VectorBoundary.h"
 
@@ -602,10 +603,6 @@ void ThermalElasticityProblem<dim>::solve ()
 	cg.solve(system_matrix.block(1, 1), solution.block(1), system_rhs.block(1), preconditioner);
 	//hanging_node_constraints.distribute(solution.block(1));
 
-	std::cout << "Displacement:\n";
-	for(unsigned int i = 0; i < solution.block(1).size(); i++)
-		std::cout << i << ": " << solution.block(1)[i] << "\n";
-
 	//Status("Completed solve for displacement.", verbosity, MIN_V);
 
 	if (is_transient) {
@@ -617,8 +614,8 @@ void ThermalElasticityProblem<dim>::solve ()
 template <int dim>
 void ThermalElasticityProblem<dim>::output_results () const
 {
-	TEPostProcessor<dim> post_process;
-	DataOut<dim> data_out;
+	TEPostProcessor<dim> post_process(materials);
+	TEDataOut<dim> data_out;
 	data_out.attach_dof_handler (dof_handler);
 	data_out.add_data_vector (solution, post_process);
 	data_out.build_patches();

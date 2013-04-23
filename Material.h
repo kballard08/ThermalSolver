@@ -21,13 +21,13 @@ public:
 
 	// Virtual methods that will be called by anything that uses a material
 	// Gets material id
-	virtual unsigned int get_id() { return mat_id; };
+	virtual unsigned int get_id() const { return mat_id; };
 	// Gets the 4th order stiffness tensor
-	virtual SymmetricTensor<4, dim> get_stiffness() { return stiffness_tensor; };
+	virtual SymmetricTensor<4, dim> get_stiffness() const { return stiffness_tensor; };
 	// Gets the 2nd order coefficient of thermal expansion tensor
-	virtual SymmetricTensor<2, dim> get_expansion() { return alpha_tensor; };
+	virtual SymmetricTensor<2, dim> get_expansion() const { return alpha_tensor; };
 	// Gets the 2nd order coefficient of thermal conduction tensor
-	virtual Tensor<2, dim> get_conduction() { return k_tensor; };
+	virtual Tensor<2, dim> get_conduction() const { return k_tensor; };
 
 protected:
 	// The material id that will correspond to the material id in the mesh

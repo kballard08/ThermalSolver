@@ -5,8 +5,8 @@
  *      Author: kballard
  */
 
-#ifndef TMPOSTPROCESSOR_H_
-#define TMPOSTPROCESSOR_H_
+#ifndef TEPOSTPROCESSOR_H_
+#define TEPOSTPROCESSOR_H_
 
 #include <deal.II/base/exceptions.h>
 #include <deal.II/base/function.h>
@@ -15,18 +15,28 @@
 #include <deal.II/fe/fe_update_flags.h>
 #include <deal.II/numerics/data_postprocessor.h>
 
+#include "Material.h"
+
 #include <string>
 #include <vector>
 
 namespace FEASolverNS
 {
 
+/*
+ * The TEPostProcessor class is intended to be paired with the TEDataOut class.
+ * If it is used with the DataOut class, an exception will be thrown. It must
+ * be specific like this to accomdate the output of stress data.  The major
+ * change is that the compute_derived_quanitities_vector now accepts the
+ * cell's material_id as an argument.
+ */
+
 using namespace dealii;
 template <int dim>
 class TEPostProcessor : public DataPostprocessor<dim>
 {
 public:
-	TEPostProcessor() {};
+	TEPostProcessor(const std::vector< Material<dim> > &materials) : mats(materials) {};
 
 	virtual void compute_derived_quantities_vector (const std::vector<Vector<double> >              &uh,
 												   const std::vector<std::vector<Tensor<1,dim> > > &duh,
@@ -35,9 +45,20 @@ public:
 												   const std::vector<Point<dim> >                  &evaluation_points,
 												   std::vector<Vector<double> >                    &computed_quantities) const;
 
+	void compute_derived_quantities_vector (const std::vector<Vector<double> >              &uh,
+												   const std::vector<std::vector<Tensor<1,dim> > > &duh,
+												   const std::vector<std::vector<Tensor<2,dim> > > &dduh,
+												   const std::vector<Point<dim> >                  &normals,
+												   const std::vector<Point<dim> >                  &evaluation_points,
+												   const int									   &material_id,
+												   std::vector<Vector<double> >                    &computed_quantities) const;
+
 	virtual std::vector<std::string> get_names() const;
 	virtual std::vector<DataComponentInterpretation::DataComponentInterpretation> get_data_component_interpretation () const;
 	virtual UpdateFlags get_needed_update_flags() const { return update_values | update_gradients | update_q_points; };
+
+private:
+	std::vector< Material<dim> > mats;
 };
 
 template <int dim>
@@ -53,6 +74,9 @@ std::vector<std::string> TEPostProcessor<dim>::get_names() const
 		solution_names.push_back ("eps_xx");
 		solution_names.push_back ("eps_yy");
 		solution_names.push_back ("eps_xy");
+		solution_names.push_back ("sig_xx");
+		solution_names.push_back ("sig_yy");
+		solution_names.push_back ("sig_xy");
 		break;
 	case 3:
 		solution_names.push_back ("T");
@@ -65,6 +89,12 @@ std::vector<std::string> TEPostProcessor<dim>::get_names() const
 		solution_names.push_back ("eps_yz");
 		solution_names.push_back ("eps_xz");
 		solution_names.push_back ("eps_xy");
+		solution_names.push_back ("sig_xx");
+		solution_names.push_back ("sig_yy");
+		solution_names.push_back ("sig_zz");
+		solution_names.push_back ("sig_yz");
+		solution_names.push_back ("sig_xz");
+		solution_names.push_back ("sig_xy");
 		break;
 	default:
 		Assert (false, ExcNotImplemented());
@@ -79,11 +109,11 @@ std::vector<DataComponentInterpretation::DataComponentInterpretation> TEPostProc
 	std::vector<DataComponentInterpretation::DataComponentInterpretation> interpretation;
 	// For now set all of the components to scalar, but change later?
 	if (dim == 2) {
-		for (unsigned int i = 0; i < 1+dim+3; i++)
+		for (unsigned int i = 0; i < 1+dim+6; i++)
 			interpretation.push_back (DataComponentInterpretation::component_is_scalar);
 	}
 	else if (dim ==3) {
-		for (unsigned int i = 0; i < 1+dim+6; i++)
+		for (unsigned int i = 0; i < 1+dim+12; i++)
 			interpretation.push_back (DataComponentInterpretation::component_is_scalar);
 	}
 	return interpretation;
@@ -95,6 +125,19 @@ void TEPostProcessor<dim>::compute_derived_quantities_vector (const std::vector<
 															 const std::vector<std::vector<Tensor<2,dim> > > &/*dduh*/,
 															 const std::vector<Point<dim> >                  &/*normals*/,
 															 const std::vector<Point<dim> >                  &/*evaluation_points*/,
+															 std::vector<Vector<double> >                    &computed_quantities) const
+{
+	// This should not be used now
+	Assert (false, ExcMessage("The TEPostProcessor was used with the DataOut class, be sure to use the TEDataOut class"));
+}
+
+template <int dim>
+void TEPostProcessor<dim>::compute_derived_quantities_vector (const std::vector<Vector<double> >              &uh,
+															 const std::vector<std::vector<Tensor<1,dim> > > &duh,
+															 const std::vector<std::vector<Tensor<2,dim> > > &/*dduh*/,
+															 const std::vector<Point<dim> >                  &/*normals*/,
+															 const std::vector<Point<dim> >                  &/*evaluation_points*/,
+															 const int										 &material_id,
 															 std::vector<Vector<double> >                    &computed_quantities) const
 {
 	const unsigned int n_quadrature_points = uh.size();
@@ -144,10 +187,25 @@ void TEPostProcessor<dim>::compute_derived_quantities_vector (const std::vector<
 			curr_ind += 6;
 		}
 
+		// Get cell's material properties
+		SymmetricTensor<4, dim> stiffness;
+		SymmetricTensor<2, dim> alpha;
+
+		bool mat_found = false;
+		for (unsigned int mat_ind = 0; mat_ind < mats.size(); mat_ind++) {
+			unsigned int id = mats[mat_ind].get_id();
+			if (mats[mat_ind].get_id() == material_id) {
+				stiffness = mats[mat_ind].get_stiffness();
+				alpha = mats[mat_ind].get_expansion();
+				mat_found = true;
+				break;
+			}
+		}
+		Assert(mat_found, ExcMessage("Material not found in TEPostProcessor."))
+
 		// Compute eigenstrain
 		// How do I get the coefficient of thermal expansion matrix?
 		// And get the stiffness matrix?
-		/*
 		const SymmetricTensor<2,dim> elastic_strain = total_strain-alpha*temperature;
 		// Compute stress
 		const SymmetricTensor<2,dim> stress = stiffness * elastic_strain;
@@ -166,11 +224,10 @@ void TEPostProcessor<dim>::compute_derived_quantities_vector (const std::vector<
 			computed_quantities[q](curr_ind+5) = stress[0][1];
 			curr_ind += 6;
 		}
-		*/
 
 	}
 }
 
 }
 
-#endif /* THERMMECHPOSTPROCESSOR_H_ */
+#endif /* TEPOSTPROCESSOR_H_ */
