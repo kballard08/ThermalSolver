@@ -40,6 +40,7 @@
 #include "BoundaryGeometry.h"
 #include "ScriptReader.h"
 #include "TimeContainer.h"
+#include "TMPostProcessor.h"
 #include "Utility.h"
 #include "VectorBoundary.h"
 
@@ -158,7 +159,7 @@ bool ThermalElasticityProblem<dim>::process_cmd(std::vector<std::string> tokens)
 	}
 	else if (tokens[0] == "TransientAnalysis") {
 		Status("Analysis has been set to transient.", verbosity, MIN_V);
-		Assert(tokens.size() == 6, ExcMessage("TransientAnalysis command in the input script did not meet the expected parameters of start_time end_time n_time_steps."))
+		Assert(tokens.size() == 4, ExcMessage("TransientAnalysis command in the input script did not meet the expected parameters of start_time end_time n_time_steps."))
 		// Expected tokens are:
 		// start_time end_time n_time_steps
 		double start_time = atof(tokens[1].c_str());
@@ -258,16 +259,23 @@ void ThermalElasticityProblem<dim>::run(std::vector<BoundaryGeometry<dim> *> *bo
 	boundaries = bound;
 
 	setup_system ();
+
+	if (is_transient)
+		std::cout << "\n\nAnalyzing time: " << tc.get_current_time() << "\n";
+
 	assemble_system ();
 	solve ();
 	output_results ();
 
 	if (is_transient) {
 		while (tc.increment_time()) {
+			std::cout << "\n\nAnalyzing time: " << tc.get_current_time() << "\n";
 			assemble_system ();
 			solve ();
 			output_results ();
 		}
+
+		std::cout << "\nFinished transient analysis.\n";
 	}
 } // run
 
@@ -342,8 +350,11 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 		prev_solution.collect_sizes ();
 
 		// Assign initial temperature
-		for (unsigned int i = 0; i < prev_solution.block(0).size(); i++)
-			prev_solution.block(0)[i] = initial_temperature;
+		if (tc.index() == 0) {
+			for (unsigned int i = 0; i < solution.block(0).size(); i++)
+				solution.block(0)[i] = initial_temperature;
+		}
+
 	}
 
 	Status("Completed setup_system.", verbosity, MIN_V);
@@ -398,12 +409,6 @@ void ThermalElasticityProblem<dim>::assemble_system()
 			for (unsigned int boundary_index = 0; boundary_index < boundaries->size(); boundary_index++)
 				if ((*boundaries)[boundary_index]->point_on_geometry(cell->face(face)->center())) {
 					cell->face(face)->set_boundary_indicator((*boundaries)[boundary_index]->get_id()); // TODO: Should this be set_all_boundary_indicators?
-					if (verbosity == DEBUG_V) {
-						std::cout << "Setting boundary id " << (*boundaries)[boundary_index]->get_id() << " at face " << face << " with center: (";
-						for (int i = 0; i < dim; i++)
-							std::cout << cell->face(face)->center()(i) << ", ";
-						std::cout << ")" << std::endl;
-					}
 				}
 
 		fe_values.reinit (cell);
@@ -462,8 +467,8 @@ void ThermalElasticityProblem<dim>::assemble_system()
 							) *
 							fe_values.JxW (q_point);
 
-					// Add transient term
-					if (is_transient) {
+					// Add transient term if this is not the first time step, since there is no previous time step
+					if (is_transient  && tc.index() > 0) {
 						cell_matrix(i,j) += (1/(tc.get_current_time() - tc.get_prev_time())) * phi_i_t * phi_j_t * fe_values.JxW (q_point);
 						cell_rhs(i) += (1/(tc.get_current_time() - tc.get_prev_time())) * phi_i_t * phi_j_t * local_prev_solution[j] * fe_values.JxW (q_point);
 				}
@@ -526,7 +531,7 @@ void ThermalElasticityProblem<dim>::assemble_system()
 			system_rhs(local_dof_indices[i]) += cell_rhs(i);
 		}
 	}
-	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
+	//Status("Completed the cell loop in assembly.", verbosity, MAX_V);
 
 	//hanging_node_constraints.condense(system_matrix);
 	//hanging_node_constraints.condense(system_rhs);
@@ -547,11 +552,6 @@ void ThermalElasticityProblem<dim>::assemble_system()
 			  solution,
 			  system_rhs);
 	}
-
-	std::cout << "RHS (1) in cell:\n";
-	//for (BlockVector<double>::iterator iter = system_rhs.block(1).begin(); iter != system_rhs.block(1).end(); iter++)
-	for (unsigned int i = 0; i < system_rhs.block(1).size(); i++)
-		std::cout << i << ": " << system_rhs.block(1)[i] << "\n";;
 
 	// Apply Dirchlet BC for displacement
 	ComponentMask displacement_mask = fe.component_mask(u_extract);
@@ -582,24 +582,18 @@ void ThermalElasticityProblem<dim>::solve ()
 	SolverControl           solver_control (1000, 1e-14);
 	SolverCG<>              cg (solver_control);
 
-	// First solve for the temperatures
-	cg.solve(system_matrix.block(0, 0), solution.block(0), system_rhs.block(0), PreconditionIdentity());
-	//hanging_node_constraints.distribute(solution.block(0));
+	// If the problem is transient, the initial temperature is set and will be taken as the solution at time step 0
+	if (!is_transient || tc.index() > 0) {
+		// First solve for the temperatures
+		cg.solve(system_matrix.block(0, 0), solution.block(0), system_rhs.block(0), PreconditionIdentity());
+		//hanging_node_constraints.distribute(solution.block(0));
+	}
 
 	// Now solve for the displacements
 	Vector<double> tmp (solution.block(1).size());
 	system_matrix.block(1, 0).vmult(tmp, solution.block(0));
 	system_rhs.block(1) -= tmp;
 	tmp.reinit(0);
-
-	if (verbosity >= DEBUG_V) {
-		std::cout << "Block (1, 1):\n";
-		//std::cout << system_matrix.block(1, 1) << "\n";
-		std::cout << "RHS (1):\n";
-		//for (BlockVector<double>::iterator iter = system_rhs.block(1).begin(); iter != system_rhs.block(1).end(); iter++)
-		for (unsigned int i = 0; i < system_rhs.block(1).size(); i++)
-			std::cout << i << ": " << system_rhs.block(1)[i] << "\n";
-	}
 
 	Status("Starting solve for displacement.", verbosity, MIN_V);
 
@@ -608,38 +602,25 @@ void ThermalElasticityProblem<dim>::solve ()
 	cg.solve(system_matrix.block(1, 1), solution.block(1), system_rhs.block(1), preconditioner);
 	//hanging_node_constraints.distribute(solution.block(1));
 
-	Status("Completed solve for displacement.", verbosity, MIN_V);
+	std::cout << "Displacement:\n";
+	for(unsigned int i = 0; i < solution.block(1).size(); i++)
+		std::cout << i << ": " << solution.block(1)[i] << "\n";
+
+	//Status("Completed solve for displacement.", verbosity, MIN_V);
 
 	if (is_transient) {
 		Status("Saving current solution for next time step.", verbosity, MIN_V);
-		prev_solution.equ(1.0, solution);
+		prev_solution = solution;
 	}
 } // solve
 
 template <int dim>
 void ThermalElasticityProblem<dim>::output_results () const
 {
-	std::vector<std::string> solution_names;
-	switch (dim)
-	{
-	case 2:
-		solution_names.push_back ("temperature");
-		solution_names.push_back ("x_displacement");
-		solution_names.push_back ("y_displacement");
-		break;
-	case 3:
-		solution_names.push_back ("temperature");
-		solution_names.push_back ("x_displacement");
-		solution_names.push_back ("y_displacement");
-		solution_names.push_back ("z_displacement");
-		break;
-	default:
-		Assert (false, ExcNotImplemented());
-		break;
-	}
+	TEPostProcessor<dim> post_process;
 	DataOut<dim> data_out;
 	data_out.attach_dof_handler (dof_handler);
-	data_out.add_data_vector (solution, solution_names);
+	data_out.add_data_vector (solution, post_process);
 	data_out.build_patches();
 	if (is_transient) {
 		std::ofstream output ("solution" + tc.index_str() + ".vtk");

@@ -6,9 +6,9 @@ SetVerbosity 2
 
 // material_id lambda mu alpha k
 // Properties chosen are for aluminum
-IsotropicMaterial 0 48.696e9 26e9 22.3e-6 250
+IsotropicMaterial 0 48.696e9 26e9 22.3e-6 25
 
-TransientAnalysis 0.0 1.0 4
+TransientAnalysis 0.0 1.0 20
 
 ReadBoundaries
 	// Create line from x = -1 to 1 at y = 1 and assign boundary_id of 1
@@ -17,14 +17,19 @@ ReadBoundaries
 
 	// Create line along boundary that is normal to x-axis at x = -1.0
 	1 0 -1.0 // boundary_id axis value
+
+	// Create line along top boundary that is normal to y-axis at y = 1.0
+	2 1 1.0 // boundary_id axis value
 EndBoundaries
 
 ReadBCs
 	// Specifies a temperature value with arguments:
 	// boundary_id value
-	TemperatureBoundary 0 100.0
-	TemperatureBoundary 1 100.0
+	FluxBoundary 0 0.0
+	FluxBoundary 1 0.0
+	FluxBoundary 2 100.0
 
 	TractionBoundary 0 0.0 0.0
 	DisplacementBoundary 1 0.0 0.0
+	TractionBoundary 2 0.0 0.0
 EndBCs

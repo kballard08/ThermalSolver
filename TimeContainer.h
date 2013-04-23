@@ -34,6 +34,8 @@ public:
 	double get_current_time() { return time_steps[curr_index]; };
 	// Returns the previous time value
 	double get_prev_time() { Assert(curr_index > 0, ExcMessage("TimeContainer method get_prev_time cannot be called when the current time step is 0")); return time_steps[curr_index-1]; };
+	// Returns the time step index (0 based)
+	int index() const { return curr_index; };
 	// Returns the time step index (0 based) as a string for use in file names for output
 	std::string index_str() const;
 
@@ -47,9 +49,11 @@ void TimeContainer::initialize(double start_t, double end_t, int n)
 	Assert(start_t <= end_t, ExcMessage("The start time must be less than or equal to the end time"))
 	Assert(n >=0 , ExcMessage("The start time must be less than the end time"))
 	// Create the time steps vector
+	time_steps.resize(n);
 	double delta_time = (end_t - start_t)/((double) n);
-	for (int i = 0; i < n; i++)
+	for (int i = 0; i < n; i++) {
 		time_steps[i] = start_t + delta_time*i;
+	}
 }
 
 bool TimeContainer::increment_time() {
