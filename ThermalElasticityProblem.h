@@ -80,6 +80,11 @@ private:
 	Verbosity verbosity;
 	unsigned int n_comp;
 
+	// Transient variables
+	bool is_transient;
+	double start_time, end_time;
+	int n_time_steps;
+
 	Triangulation<dim>  *triangulation;
 	FESystem<dim>       fe;
 	DoFHandler<dim>		dof_handler;
@@ -106,6 +111,10 @@ ThermalElasticityProblem<dim>::ThermalElasticityProblem(Triangulation<dim> *tria
 	verbosity = MIN_V;
 	boundaries = 0;
 	n_comp = fe.n_components();
+
+	is_transient = false;
+	start_time = end_time = 0.0;
+	n_time_steps = 0;
 }
 
 // Destructor
@@ -143,7 +152,19 @@ bool ThermalElasticityProblem<dim>::process_cmd(std::vector<std::string> tokens)
 		materials.push_back(IsotropicMaterial<dim>(atoi(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()), atof(tokens[4].c_str()), atof(tokens[5].c_str())));
 	}
 	else if (tokens[0] == "SetVerbosity") {
+		// There has already been an assertion in the Executive class
 		verbosity = (Verbosity)atoi(tokens[1].c_str());
+	}
+	else if (tokens[0] == "TransientAnalysis") {
+		Status("Analysis has been set to transient.", verbosity, MIN_V);
+		Assert(tokens.size() == 6, ExcMessage("TransientAnalysis command in the input script did not meet the expected parameters of start_time end_time n_time_steps."))
+		// Expected tokens are:
+		// start_time end_time n_time_steps
+		start_time = atof(tokens[1].c_str());
+		start_time = atof(tokens[2].c_str());
+		n_time_steps = atoi(tokens[3].c_str());
+
+		is_transient = true;
 	}
 	else {
 		return false;
