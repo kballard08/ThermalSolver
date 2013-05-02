@@ -313,9 +313,9 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 	std::cout << n_t << " dims for temperature and " << n_u << " dims for displacement" << '\n';
 
 	// Deal with the hanging nodes
-	//hanging_node_constraints.clear();
-	//DoFTools::make_hanging_node_constraints (dof_handler, hanging_node_constraints);
-	//hanging_node_constraints.close();
+	hanging_node_constraints.clear();
+	DoFTools::make_hanging_node_constraints (dof_handler, hanging_node_constraints);
+	hanging_node_constraints.close();
 
 	// Create sparsity pattern
 	// [ thermal stiffness terms         , thermal terms from deformation ] * [ t ] = [ heat generation terms ]
@@ -329,7 +329,7 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 
 	// Create and compress
 	DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern);
-	//hanging_node_constraints.condense (sparsity_pattern);
+	hanging_node_constraints.condense (sparsity_pattern);
 	sparsity_pattern.compress();
 
 	// Create solution and rhs vectors
@@ -510,11 +510,16 @@ void ThermalElasticityProblem<dim>::assemble_system()
 							traction_bcs[traction_bc_index]->vector_value(fe_face_values.quadrature_point(q_point), traction_value, 1, dim);
 
 							for (unsigned int i=0; i<dofs_per_cell; ++i) {
-								const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
-								double tmp_sum = 0;
-								for (unsigned int j=0; j < dim; j++)
-									tmp_sum += phi_i_u[j] * traction_value[j];
-								cell_rhs(i) += tmp_sum * fe_face_values.JxW(q_point);
+								// Get the component of i
+								const unsigned component_i = fe.system_to_component_index(i).first;
+								// Only add the traction contribution if it is in the component mask
+								if (traction_bcs[traction_bc_index]->get_comp_mask()[component_i] == true) {
+									const Tensor<1,dim>  phi_i_u = fe_values[u_extract].value(i, q_point);
+									double tmp_sum = 0;
+									for (unsigned int j=0; j < dim; j++)
+										tmp_sum += phi_i_u[j] * traction_value[j];
+									cell_rhs(i) += tmp_sum * fe_face_values.JxW(q_point);
+								}
 							}
 						}
 					}
@@ -532,21 +537,20 @@ void ThermalElasticityProblem<dim>::assemble_system()
 			system_rhs(local_dof_indices[i]) += cell_rhs(i);
 		}
 	}
-	//Status("Completed the cell loop in assembly.", verbosity, MAX_V);
+	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
 
-	//hanging_node_constraints.condense(system_matrix);
-	//hanging_node_constraints.condense(system_rhs);
+	hanging_node_constraints.condense(system_matrix);
+	hanging_node_constraints.condense(system_rhs);
 
 	// TODO: Consider deriving rhs from TensorFunction rather than just Function, since it is more logical to describe as tensors
 	// Apply Dirchlet BC for temperature
-	ComponentMask temperature_mask = fe.component_mask(t_extract);
 	for (unsigned int i = 0; i < temperature_bcs.size(); i++) {
 		std::map<unsigned int,double> boundary_values_map;
 		VectorTools::interpolate_boundary_values (dof_handler,
 					temperature_bcs[i]->get_id(),
 					*temperature_bcs[i],
 					boundary_values_map,
-					temperature_mask);
+					temperature_bcs[i]->get_comp_mask());
 
 		MatrixTools::apply_boundary_values (boundary_values_map,
 			  system_matrix,
@@ -555,16 +559,13 @@ void ThermalElasticityProblem<dim>::assemble_system()
 	}
 
 	// Apply Dirchlet BC for displacement
-	ComponentMask displacement_mask = fe.component_mask(u_extract);
 	for (unsigned int i = 0; i < displacement_bcs.size(); i++) {
 		std::map<unsigned int,double> boundary_values_map;
 		VectorTools::interpolate_boundary_values (dof_handler,
 					displacement_bcs[i]->get_id(),
 					*displacement_bcs[i],
 					boundary_values_map,
-					displacement_mask);
-
-		std::cout << "displacement_bc " << i << " " << *displacement_bcs[i] << "\n";
+					displacement_bcs[i]->get_comp_mask());
 
 		MatrixTools::apply_boundary_values (boundary_values_map,
 			  system_matrix,
@@ -587,21 +588,21 @@ void ThermalElasticityProblem<dim>::solve ()
 	if (!is_transient || tc.index() > 0) {
 		// First solve for the temperatures
 		cg.solve(system_matrix.block(0, 0), solution.block(0), system_rhs.block(0), PreconditionIdentity());
-		//hanging_node_constraints.distribute(solution.block(0));
+		hanging_node_constraints.distribute(solution.block(0));
 	}
 
 	// Now solve for the displacements
 	Vector<double> tmp (solution.block(1).size());
 	system_matrix.block(1, 0).vmult(tmp, solution.block(0));
-	system_rhs.block(1) -= tmp;
-	tmp.reinit(0);
+	tmp *= -1;
+	tmp += system_rhs.block(1);
 
 	Status("Starting solve for displacement.", verbosity, MIN_V);
 
 	PreconditionSSOR<> preconditioner;
 	preconditioner.initialize(system_matrix.block(1, 1), 1.2);
-	cg.solve(system_matrix.block(1, 1), solution.block(1), system_rhs.block(1), preconditioner);
-	//hanging_node_constraints.distribute(solution.block(1));
+	cg.solve(system_matrix.block(1, 1), solution.block(1), tmp, preconditioner);
+	hanging_node_constraints.distribute(solution.block(1));
 
 	//Status("Completed solve for displacement.", verbosity, MIN_V);
 

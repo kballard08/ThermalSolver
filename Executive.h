@@ -12,6 +12,8 @@
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/tria_accessor.h>
 #include <deal.II/grid/tria_iterator.h>
+#include <deal.II/grid/grid_in.h>
+#include <deal.II/grid/grid_out.h>
 
 #include "ThermalElasticityProblem.h"
 #include "BoundaryGeometry.h"
@@ -33,6 +35,7 @@ public:
 
 private:
 	void make_grid_test ();
+	void make_beam_grid ();
 
 	Verbosity verbosity;
 
@@ -94,6 +97,17 @@ void Executive<dim>::run(ScriptReader *script_reader)
 		if (tokens[0] == "UseDefaultMesh") {
 			make_grid_test();
 		} // TODO: add other mesh/grid methods to read from file
+		else if (tokens[0] == "UseBeamMesh") {
+			make_beam_grid();
+		}
+		else if (tokens[0] == "ReadMesh") {
+			// Implement later
+			Assert(tokens.size() == 2, ExcMessage("The input line ReadMesh expects an argument for the file name."))
+			GridIn<dim> grid_in;
+			grid_in.attach_triangulation (triangulation);
+			std::ifstream input_file(tokens[1]);
+			grid_in.read_ucd (input_file);
+		}
 		else if (tokens[0] == "SetVerbosity") {
 			Assert(tokens.size() == 2, ExcMessage("The input line SetVerbosity expects an argument for the verbosity level to set."))
 			verbosity = (Verbosity)atoi(tokens[1].c_str());
@@ -178,6 +192,30 @@ void Executive<dim>::make_grid_test()
 	// For now just generate cube
 	// Later include functionality to read in a mesh file?
 	GridGenerator::hyper_cube(triangulation, -1, 1);
+	triangulation.refine_global(3);
+
+	// Update state information
+	mesh_initialized = true;
+}
+
+// Private method: make_grid
+template<int dim>
+void Executive<dim>::make_beam_grid()
+{
+	Status("Using the test grid.", verbosity, MIN_V);
+
+	// For now just generate beam
+	// Later include functionality to read in a mesh file?
+	if (dim == 2) {
+		Point<dim> p1 (-1, -0.1);
+		Point<dim> p2 (1, 0.1);
+		GridGenerator::hyper_rectangle (triangulation, p1, p2);
+	}
+	else if (dim == 3) {
+		Point<dim> p1 (-1, -0.1, -0.1);
+		Point<dim> p2 (1, 0.1, 0.1);
+		GridGenerator::hyper_rectangle (triangulation, p1, p2);
+	}
 	triangulation.refine_global(3);
 
 	// Update state information

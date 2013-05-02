@@ -1,14 +1,14 @@
 SetDim 3
 
-UseDefaultMesh // Default mesh results in hyper_cube (-1, 1)
+UseBeamMesh // Beam mesh results inbeam from x = -1 to 1 and y/z from -0.1 to 0.1
 
 SetVerbosity 2
 
 // material_id lambda mu alpha k
 // Properties chosen are for aluminum
-IsotropicMaterial 0 48.696e9 26e9 22.3e-6 25
+IsotropicMaterial 0 200e9 76.923e9 3.5e-5 0.013e-2
 
-TransientAnalysis 0.0 1.0 5
+TransientAnalysis 0.0 10000.0 40
 
 ReadBoundaries
 	// Create line from x = -1 to 1 at y = 1 and assign boundary_id of 1
@@ -19,7 +19,7 @@ ReadBoundaries
 	1 0 -1.0 // boundary_id axis value
 
 	// Create plane along top boundary that is normal to y-axis at y = 1.0
-	2 1 1.0 // boundary_id axis value
+	2 1 -0.1 // boundary_id axis value
 EndBoundaries
 
 ReadBCs
@@ -27,7 +27,7 @@ ReadBCs
 	// boundary_id value
 	FluxBoundary 0 0.0
 	FluxBoundary 1 0.0
-	FluxBoundary 2 100.0
+	TemperatureBoundary 2 100.0
 
 	TractionBoundary 0 0.0 0.0 0.0
 	DisplacementBoundary 1 0.0 0.0 0.0
