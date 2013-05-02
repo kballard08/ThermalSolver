@@ -41,7 +41,7 @@ public:
 
 private:
 	std::vector<double> time_steps;
-	int curr_index;
+	unsigned int curr_index;
 };
 
 void TimeContainer::initialize(double start_t, double end_t, int n)

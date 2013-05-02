@@ -50,7 +50,7 @@ public:
 												   const std::vector<std::vector<Tensor<2,dim> > > &dduh,
 												   const std::vector<Point<dim> >                  &normals,
 												   const std::vector<Point<dim> >                  &evaluation_points,
-												   const int									   &material_id,
+												   const unsigned int							   &material_id,
 												   std::vector<Vector<double> >                    &computed_quantities) const;
 
 	virtual std::vector<std::string> get_names() const;
@@ -137,7 +137,7 @@ void TEPostProcessor<dim>::compute_derived_quantities_vector (const std::vector<
 															 const std::vector<std::vector<Tensor<2,dim> > > &/*dduh*/,
 															 const std::vector<Point<dim> >                  &/*normals*/,
 															 const std::vector<Point<dim> >                  &/*evaluation_points*/,
-															 const int										 &material_id,
+															 const unsigned int								 &material_id,
 															 std::vector<Vector<double> >                    &computed_quantities) const
 {
 	const unsigned int n_quadrature_points = uh.size();
@@ -193,7 +193,6 @@ void TEPostProcessor<dim>::compute_derived_quantities_vector (const std::vector<
 
 		bool mat_found = false;
 		for (unsigned int mat_ind = 0; mat_ind < mats.size(); mat_ind++) {
-			unsigned int id = mats[mat_ind].get_id();
 			if (mats[mat_ind].get_id() == material_id) {
 				stiffness = mats[mat_ind].get_stiffness();
 				alpha = mats[mat_ind].get_expansion();

@@ -39,7 +39,7 @@ public:
 	int get_id() { return bound_id; };
 	ComponentMask get_comp_mask() { return ComponentMask(comp_mask); };
 	std::map<unsigned int, double> get_val_map() { return val_map; };
-	void vector_value (const Point<dim> &p, Vector<double>   &values, const int &start_ind, const int &end_ind) const;
+	void vector_value (const Point<dim> &p, Vector<double>   &values, const unsigned int &start_ind, const unsigned int &end_ind) const;
 
 	// Virtual Methods from function class
 	virtual double value (const Point<dim> &p, const unsigned int component = 0) const;
@@ -98,9 +98,9 @@ void VectorBoundary<dim>::vector_value (const Point<dim> &p, Vector<double> &val
 }
 
 template <int dim>
-void VectorBoundary<dim>::vector_value (const Point<dim> &p, Vector<double>   &values, const int &start_ind, const int &end_ind) const
+void VectorBoundary<dim>::vector_value (const Point<dim> &p, Vector<double>   &values, const unsigned int &start_ind, const unsigned int &end_ind) const
 {
-	int tmp = end_ind - start_ind + 1;
+	unsigned int tmp = end_ind - start_ind + 1;
 
 	// Check for dimensions
 	Assert (values.size() == tmp, ExcDimensionMismatch (values.size(), tmp));
