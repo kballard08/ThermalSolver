@@ -23,6 +23,8 @@
 namespace FEASolverNS
 {
 
+using namespace dealii;
+
 /*
  * The TEPostProcessor class is intended to be paired with the TEDataOut class.
  * If it is used with the DataOut class, an exception will be thrown. It must
@@ -30,14 +32,17 @@ namespace FEASolverNS
  * change is that the compute_derived_quanitities_vector now accepts the
  * cell's material_id as an argument.
  */
-
-using namespace dealii;
 template <int dim>
 class TEPostProcessor : public DataPostprocessor<dim>
 {
 public:
+	/// Constructor takes a reference to the materials vector, which it copies.  This should be made a pointer later, but
+	/// since the memory for materials is very small for my cases, I am less worried about the performance hit.
 	TEPostProcessor(const std::vector< Material<dim> > &materials) : mats(materials) {};
 
+	/// The expected overload of compute_derived_quantities_vector from the DataPostprocessor class.
+	/// Right now, the method will result in an Assertion explaining that it should never be called and
+	/// to use the TEDataOut class with this class instead.
 	virtual void compute_derived_quantities_vector (const std::vector<Vector<double> >              &uh,
 												   const std::vector<std::vector<Tensor<1,dim> > > &duh,
 												   const std::vector<std::vector<Tensor<2,dim> > > &dduh,
@@ -45,6 +50,7 @@ public:
 												   const std::vector<Point<dim> >                  &evaluation_points,
 												   std::vector<Vector<double> >                    &computed_quantities) const;
 
+	/// Modified compute_derived_quantities_vector that takes the material id of the cell as well
 	void compute_derived_quantities_vector (const std::vector<Vector<double> >              &uh,
 												   const std::vector<std::vector<Tensor<1,dim> > > &duh,
 												   const std::vector<std::vector<Tensor<2,dim> > > &dduh,
@@ -53,11 +59,15 @@ public:
 												   const unsigned int							   &material_id,
 												   std::vector<Vector<double> >                    &computed_quantities) const;
 
+	/// Returns a vector of strings for the names of the output quantities
 	virtual std::vector<std::string> get_names() const;
+	/// Method indicating the component interpretation (i.e. is the output part of a vector or is it scalar)
 	virtual std::vector<DataComponentInterpretation::DataComponentInterpretation> get_data_component_interpretation () const;
+	/// Just tells DataOut what to update, in this case the hessians were left off since they are not needed
 	virtual UpdateFlags get_needed_update_flags() const { return update_values | update_gradients | update_q_points; };
 
 private:
+	/// Copy of materials vector (should be made a pointer)
 	std::vector< Material<dim> > mats;
 };
 

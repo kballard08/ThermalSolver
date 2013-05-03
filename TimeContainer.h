@@ -18,29 +18,37 @@ namespace FEASolverNS
 
 using namespace dealii;
 
+/**
+ * This class contains information about the time for transient problems. It was discovered after the creation of this class
+ * that deal II has other methods for handling time dependant problems, but since this was already implemented and working
+ * it was kept.  It also allows the opportunity for further extension if needed, such as variable time steps dependant on
+ * error, etc.
+ */
 class TimeContainer
 {
 public:
 	TimeContainer() : curr_index(0) {};
 
-	// Intializes the TimeContainer
-	// For now there is just a instialize method for a linear spacing of time steps
+	/// Intializes the TimeContainer
+	/// For now there is just a instialize method for a linear spacing of time steps
 	void initialize(double start_t, double end_t, int n);
 
-	// Increments time and returns false if the there are no more increments to go to
-	// In other words, if the increment method returns false, the analysis is over
+	/// Increments time and returns false if the there are no more increments to go to
+	/// In other words, if the increment method returns false, the analysis is over
 	bool increment_time();
-	// Returns the current time value
+	/// Returns the current time value
 	double get_current_time() { return time_steps[curr_index]; };
-	// Returns the previous time value
+	/// Returns the previous time value
 	double get_prev_time() { Assert(curr_index > 0, ExcMessage("TimeContainer method get_prev_time cannot be called when the current time step is 0")); return time_steps[curr_index-1]; };
-	// Returns the time step index (0 based)
+	/// Returns the time step index (0 based)
 	int index() const { return curr_index; };
-	// Returns the time step index (0 based) as a string for use in file names for output
+	/// Returns the time step index (0 based) as a string for use in file names for output
 	std::string index_str() const;
 
 private:
+	/// Vector of arbitrary times, steps do not have to be uniform
 	std::vector<double> time_steps;
+	/// current time step index
 	unsigned int curr_index;
 };
 

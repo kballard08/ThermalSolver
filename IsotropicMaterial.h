@@ -18,21 +18,25 @@ template<int dim>
 class IsotropicMaterial : public Material<dim>
 {
 public:
-	IsotropicMaterial(const unsigned int &material_id, const double &lambda, const double &mu, const double &alpha, const double &k);
+	/// Constructor
+	IsotropicMaterial(const unsigned int &material_id, const double &E, const double &nu, const double &alpha, const double &k);
+	/// Destructor
 	virtual ~IsotropicMaterial() {};
-
-	double get_lambda() { return lambda_val; }
-	double get_mu() { return mu_val; }
 
 private:
 	// Isotropic constants
-	double lambda_val, mu_val;
+	double lambda, mu;
 };
 
 template<int dim>
-IsotropicMaterial<dim>::IsotropicMaterial(const unsigned int &material_id, const double &lambda, const double &mu, const double &alpha, const double &k)
-	: Material<dim>(material_id), lambda_val(lambda), mu_val(mu)
+IsotropicMaterial<dim>::IsotropicMaterial(const unsigned int &material_id, const double &E, const double &nu, const double &alpha, const double &k)
+	: Material<dim>(material_id)
 {
+	// Lambda and mu material constants calculated form the relations assuming Hooke's law
+	// Obviously only valid for isotropic materials.
+	lambda = E*nu/((1+nu)*(1-2*nu));
+	mu = E/(2*(1+nu));
+
 	// Form coefficient of thermal conduction tensor
 	for (int i = 0; i < dim; i++)
 		for (int j = 0; j < dim; j++)
