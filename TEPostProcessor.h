@@ -25,7 +25,7 @@ namespace FEASolverNS
 
 using namespace dealii;
 
-/*
+/**
  * The TEPostProcessor class is intended to be paired with the TEDataOut class.
  * If it is used with the DataOut class, an exception will be thrown. It must
  * be specific like this to accomdate the output of stress data.  The major

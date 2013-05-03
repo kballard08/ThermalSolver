@@ -27,18 +27,28 @@ using namespace dealii;
 
 template<int dim>
 
-
+/**
+ * The VectorBoundary class describes a boundary condition of either Dirchlet or Nuemman types, and can be used for others I'm sure.
+ * The idea is to pass the class the values and components that it applies to and the condition will be applied during assembly.
+ * This is simply a storage class for all intents and purposes.  The vector that it is added to in the ThermalElsaticityProblem
+ * class determines what type of boundary condition it is.
+ */
 class VectorBoundary : public Function<dim>
 {
 public:
-	// Constructor/destructor
+	/// The constructor takes the boundary id (must be unique otherwise the last one added will be applied), the values, the component
+	/// indicies it applies to, and the number of components of the FESystem
 	VectorBoundary(const int &boundary_id, const std::vector<double> &values, const std::vector<unsigned int> &indices, const unsigned int &n_components);
+	/// Virtual destructor
 	virtual ~VectorBoundary() {};
 
-	// Methods added for boundary class
+	/// Gets the corresponding boundary id
 	int get_id() { return bound_id; };
+	/// Get the component mask for the components that were passed to the constructor
 	ComponentMask get_comp_mask() { return ComponentMask(comp_mask); };
+	/// Returns a map of components to value
 	std::map<unsigned int, double> get_val_map() { return val_map; };
+	/// Returns the vector of values from the start index to end index
 	void vector_value (const Point<dim> &p, Vector<double>   &values, const unsigned int &start_ind, const unsigned int &end_ind) const;
 
 	// Virtual Methods from function class
@@ -49,7 +59,6 @@ public:
 	unsigned int val_size() const { return val.size(); };
 	double val_value(unsigned int i) const { Assert(i >= 0 && i < val.size(), ExcIndexRange(i, 0, val.size())); return val[i]; };
 
-	//friend std::ostream& operator<<(std::ostream& os, const VectorBoundary<dim>& vb);
 protected:
 	int bound_id;
 	std::vector<double> val;

@@ -17,6 +17,10 @@ namespace FEASolverNS
 
 using namespace dealii;
 
+/**
+ * Class to describe the right hand side of the elasticty formulation. This describes body
+ * forces, which is assumed to be 0 for my work.  Other body forces can be implemented later.
+ */
 template <int dim>
 class ElasticityRightHandSide :  public Function<dim>
 {

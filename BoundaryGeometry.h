@@ -19,6 +19,11 @@ namespace FEASolverNS
 using namespace dealii;
 
 // Plane for 3d and line for 2d
+/**
+ * Class the generally describes a boundary. Right now only planar and linear boundaries are implemented, but others can
+ * be easily added.  In my field, these are sufficient for what I do. Boundary conditions are applied to boundaries by
+ * corresponding boundary id's.
+ */
 template<int dim>
 class BoundaryGeometry
 {
@@ -26,36 +31,37 @@ public:
 	BoundaryGeometry(int boundary_id) : bound_id(boundary_id), defined_by_tensor(false), defined_by_axis(false), def_axis(0), def_value(0) {};
 	~BoundaryGeometry() {};
 
-	// Pass the points to define the geometry
-	// 2d: 2 points (line)
-	// 3d: 3 points (plane)
+	/// Pass the points to define the geometry
+	/// 2d: 2 points (line)
+	/// 3d: 3 points (plane)
 	void define_geometry(Point<dim> points[dim]);
-	// Defines a geometry normal to a principle axis at a given value along the axis
-	// 0: x
-	// 1: y
-	// 2: z
+	/// Defines a geometry normal to a principle axis at a given value along the axis
+	/// 0: x
+	/// 1: y
+	/// 2: z
 	void define_geometry(int axis, double value);
 
-	// Test if point lies on the plane
+	/// Test if point lies on the plane
 	bool point_on_geometry(const Point<dim> &p);
 
-	// Returns the associated boundary_id
+	/// Returns the associated boundary_id
 	int get_id() { return bound_id; }
 
 private:
 	int bound_id;
 
-	// Options to define
+	/// Options to define
 	bool defined_by_tensor;
 	bool defined_by_axis;
 
-	// Tensor representing the points forming the geometry
+	/// Tensor representing the points forming the geometry
 	Tensor<2, dim> def_points;
 
 	int def_axis;
 	double def_value;
 
-	// Tweak this value if points that should be on a plane are not or vice versa
+	/// Tolerance for testing if points are on the boundary
+	/// Tweak this value if points that should be on a plane are not or vice versa
 	constexpr static double tol = 1e-12;
 };
 

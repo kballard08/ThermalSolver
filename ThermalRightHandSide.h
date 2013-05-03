@@ -15,6 +15,11 @@ namespace FEASolverNS
 
 using namespace dealii;
 
+/**
+ * Class to describe the right hand side of the thermal formulation. This describes heat
+ * generation, which is assumed to be 0 for my work.  Heat generation terms can be added later
+ * to be dependant on time or position.
+ */
 template <int dim>
 class ThermalRightHandSide : public Function<dim>
 {

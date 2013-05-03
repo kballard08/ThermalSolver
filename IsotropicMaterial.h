@@ -14,6 +14,10 @@
 namespace FEASolverNS
 {
 
+/**
+ * Class derived from Material class describing an isotropic material.  It is very easy to add transversely isotropic and
+ * orthotropic material classes as needed.
+ */
 template<int dim>
 class IsotropicMaterial : public Material<dim>
 {
@@ -24,7 +28,7 @@ public:
 	virtual ~IsotropicMaterial() {};
 
 private:
-	// Isotropic constants
+	/// Isotropic constants (I kept these around for debug purposes, but these can be moved to just in the constructor now)
 	double lambda, mu;
 };
 

@@ -31,7 +31,13 @@ namespace FEASolverNS
 
 using namespace dealii;
 
-/*
+/// Declare append_patch_to_list
+/// Definition later
+template <int dim, int spacedim>
+void append_patch_to_list (const DataOutBase::Patch<dim,spacedim> &patch,
+					  std::vector<DataOutBase::Patch<dim,spacedim> > &patches);
+
+/**
  * The point of this class is to allow the compute_derived_quanitites in the
  * Postprocessor to know the material_id of the cell on which it is operating.
  * To do this, the TEDataOut class derives from the DataOut class and overrides
@@ -57,13 +63,6 @@ using namespace dealii;
  * header file rather than the source file in deal II, that is why I had to copy it
  * here.
  */
-
-// Declare append_patch_to_list
-// Definition later
-template <int dim, int spacedim>
-void append_patch_to_list (const DataOutBase::Patch<dim,spacedim> &patch,
-					  std::vector<DataOutBase::Patch<dim,spacedim> > &patches);
-
 template <int dim, class DH=DoFHandler<dim> >
 class TEDataOut : public DataOut<dim, DH>
 {

@@ -22,6 +22,10 @@ namespace FEASolverNS
 
 using namespace dealii;
 
+/**
+ * This class it meant to read a ascii based script and return each line as a vector of strings.  The strings are split
+ * by whitespace in the script.
+ */
 class ScriptReader
 {
 public:
@@ -29,10 +33,11 @@ public:
 	ScriptReader(std::string filePath);
 	~ScriptReader();
 
+	/// Use if the default constructor was called
 	void open(std::string filePath);
 
-	// Return file indicates if the read was valid,
-	// false will be returned if the eof was reached
+	/// Return file indicates if the read was valid,
+	/// false will be returned if the eof was reached
 	bool get_next_line(std::vector<std::string> &tokens);
 
 private:
@@ -51,6 +56,10 @@ ScriptReader::~ScriptReader()
 
 void ScriptReader::open(std::string filePath)
 {
+	// Close scriptFile if was open
+	if (scriptFile)
+		scriptFile.close();
+
 	// Assumes file exists, later add check to see if it exists
 	scriptFile.open(filePath.c_str());
 	if (!scriptFile) {

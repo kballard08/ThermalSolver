@@ -9,7 +9,7 @@
 #define THERMALELASTICITYPROBLEM_H_
 
 /// Include files
-/// =============
+///=============
 
 /// Include applicable deal II headers
 #include <deal.II/base/quadrature_lib.h>
@@ -83,7 +83,7 @@ class ThermalElasticityProblem
 {
 public:
 	/// Constructor and Destructor
-	/// --------------------------
+	///--------------------------
 
 	/**
 	 * Constructor takes a pointer to the triangulation to be used for the problem.  The Executive class contains/owns
@@ -99,7 +99,7 @@ public:
 	~ThermalElasticityProblem();
 
 	/// Public Methods
-	/// --------------
+	///--------------
 
 	/**
 	 * There is sort of a remenant of the method I was used to for reading in files.  Deal II contains methods and structures
@@ -146,7 +146,7 @@ public:
 
 private:
 	/// Private Methods
-	/// ---------------
+	///---------------
 
 	/**
 	 * The setup_system method determines the number of dof's for the blocks of the system, creates sparsity patters,
@@ -186,7 +186,7 @@ private:
 	void output_results () const;
 
 	/// Private Properties
-	/// ------------------
+	///------------------
 
 	/// Simply a variable to keep track of how much to output to the screen.
 	Verbosity verbosity;
