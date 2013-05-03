@@ -6,9 +6,9 @@ SetVerbosity 2
 
 // material_id lambda mu alpha k
 // Properties chosen are for aluminum
-IsotropicMaterial 0 200e9 76.923e9 3.5e-5 0.013e-2
+IsotropicMaterial 0 200e9 0.3 3.5e-5 0.013e-2
 
-TransientAnalysis 0.0 10000.0 5
+TransientAnalysis 0.0 1000.0 30
 
 ReadBoundaries
 	// Create line from x = -1 to 1 at y = 1 and assign boundary_id of 1
