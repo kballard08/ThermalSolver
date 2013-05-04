@@ -9,7 +9,6 @@
 #define THERMALELASTICITYPROBLEM_H_
 
 /// Include files
-///=============
 
 /// Include applicable deal II headers
 #include <deal.II/base/quadrature_lib.h>
@@ -87,8 +86,7 @@ namespace FEASolverNS
 /// Use the deal ii namespace inside the declared namespace
 using namespace dealii;
 
-///ThermalElasticityProblem Class Description
-///==========================================
+/// ThermalElasticityProblem Class Description
 
 /**
  * The ThermalElasticityProblem encapsulates the setup, assembly, solve, and output for the thermomechanical problem.
@@ -101,8 +99,7 @@ template <int dim>
 class ThermalElasticityProblem
 {
 public:
-	/// Constructor and Destructor
-	///--------------------------
+	// Constructor and Destructor
 
 	/**
 	 * Constructor takes a pointer to the triangulation to be used for the problem.  The Executive class contains/owns
@@ -117,8 +114,7 @@ public:
 	 */
 	~ThermalElasticityProblem();
 
-	/// Public Methods
-	///--------------
+	// Public Methods
 
 	/**
 	 * There is sort of a remenant of the method I was used to for reading in files.  Deal II contains methods and structures
@@ -164,8 +160,7 @@ public:
 	void run(std::vector<BoundaryGeometry<dim> *> *bound);
 
 private:
-	/// Private Methods
-	///---------------
+	// Private Methods
 
 	/**
 	 * The setup_system method determines the number of dof's for the blocks of the system, creates sparsity patters,
@@ -204,8 +199,7 @@ private:
 	 */
 	void output_results () const;
 
-	/// Private Properties
-	///------------------
+	// Private Properties
 
 	/// Simply a variable to keep track of how much to output to the screen.
 	Verbosity verbosity;
@@ -247,7 +241,7 @@ private:
 
 	/// MPI comm that will be used to get the comm pool
 	MPI_Comm mpi_communicator;
-	// Variables are relative to the pool of MPI_COMM_WORLD
+	/// Variables are relative to the pool of MPI_COMM_WORLD
 	const unsigned int n_mpi_processes;
 	const unsigned int this_mpi_process;
 
