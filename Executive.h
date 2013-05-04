@@ -8,12 +8,13 @@
 #ifndef EXECUTIVE_H_
 #define EXECUTIVE_H_
 
-#include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/tria_accessor.h>
 #include <deal.II/grid/tria_iterator.h>
 #include <deal.II/grid/grid_in.h>
 #include <deal.II/grid/grid_out.h>
+#include <deal.II/base/utilities.h>
+#include <deal.II/base/conditional_ostream.h>
 
 #include "ThermalElasticityProblem.h"
 #include "BoundaryGeometry.h"
@@ -39,7 +40,14 @@ private:
 
 	Verbosity verbosity;
 
+	/// MPI comm that will be used to get the comm pool
+	MPI_Comm mpi_communicator;
+
+	/// Use the distributed triangulation.  This means that the mesh will not be stored
+	/// in its entirity on any node, but will distributed in pieces to each process, allowing
+	/// very large scalability.
 	Triangulation<dim>  triangulation;
+
 	std::vector<BoundaryGeometry<dim> *> *boundaries;
 	ScriptReader* 		sr;
 
@@ -47,11 +55,17 @@ private:
 
 	// State variables
 	bool mesh_initialized;
+
+	/// Conditional output stream so that only the rank 0 process outputs.  Allows the output to not be really
+	/// cluttered by lots of processes
+	ConditionalOStream pout;
+
 };
 
 // Constructor
 template<int dim>
-Executive<dim>::Executive() : te_problem(&triangulation)
+Executive<dim>::Executive() : mpi_communicator(MPI_COMM_WORLD), te_problem(&triangulation),
+		pout(std::cout, (Utilities::MPI::this_mpi_process(mpi_communicator) == 0 ))
 {
 	// Make sure the analysis only exists for 2d and 3d
 	Assert (dim == 2 || dim == 3, ExcNotImplemented());
