@@ -1,4 +1,4 @@
-SetDim 3
+SetDim 2
 
 UseDefaultMesh // Default mesh results in hyper_cube (-1, 1)
 
@@ -6,9 +6,9 @@ SetVerbosity 2
 
 // material_id lambda mu alpha k
 // Properties chosen are for aluminum
-IsotropicMaterial 0 48.696e9 26e9 22.3e-6 25
+IsotropicMaterial 0 48.696e9 0.3 22.3e-6 25
 
-TransientAnalysis 0.0 1.0 5
+//TransientAnalysis 0.0 1.0 5
 
 ReadBoundaries
 	// Create line from x = -1 to 1 at y = 1 and assign boundary_id of 1
@@ -29,7 +29,7 @@ ReadBCs
 	FluxBoundary 1 0.0
 	FluxBoundary 2 100.0
 
-	TractionBoundary 0 0.0 0.0 0.0
-	DisplacementBoundary 1 0.0 0.0 0.0
-	TractionBoundary 2 0.0 0.0 0.0
+	TractionBoundary 0 0.0 0.0
+	DisplacementBoundary 1 0.0 0.0
+	TractionBoundary 2 0.0 0.0
 EndBCs

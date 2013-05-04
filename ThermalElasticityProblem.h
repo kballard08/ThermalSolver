@@ -53,6 +53,8 @@
 #include <deal.II/lac/petsc_parallel_vector.h>
 #include <deal.II/lac/petsc_vector.h>
 #include <deal.II/lac/petsc_block_vector.h>
+#include <deal.II/lac/petsc_block_sparse_matrix.h>
+#include <deal.II/lac/petsc_sparse_matrix.h>
 #include <deal.II/lac/petsc_solver.h>
 #include <deal.II/lac/petsc_precondition.h>
 
@@ -568,6 +570,7 @@ void ThermalElasticityProblem<dim>::setup_system() // TODO: document this sectio
 	system_matrix.block(1,0).reinit (mpi_communicator, n_u, n_t, local_n_u, local_n_t, n_couplings);
 	system_matrix.block(0,1).reinit (mpi_communicator, n_t, n_u, local_n_t, local_n_u, n_couplings);
 	system_matrix.block(1,1).reinit (mpi_communicator, n_u, n_u, local_n_u, local_n_u, n_couplings);
+	system_matrix.collect_sizes();
 	// This is kind of clunky but oh well.  You need to pass the reinit for block vectors different arguments
 	// Than for a BlockMatrix, at least as I understand it.
 	// Update: its even more awkward.  My installation of the deal ii doesn't include the method
@@ -816,9 +819,11 @@ void ThermalElasticityProblem<dim>::assemble_system()
 
 	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
 
+	// Since we used hanging_node_constraints.distribute_local_to_global, these lines are no longer needed
+	// in fact they produce an error if left.
 	// Apply hanging node constraints
-	hanging_node_constraints.condense(system_matrix);
-	hanging_node_constraints.condense(system_rhs);
+	//hanging_node_constraints.condense(system_matrix);
+	//hanging_node_constraints.condense(system_rhs);
 
 	// Apply dirchlet BCs
 	apply_dirchlet_bcs ();
@@ -837,7 +842,7 @@ void ThermalElasticityProblem<dim>::transient_assemble_system()
 	system_matrix.block(0, 0) = 0;
 	system_rhs.block(0) = 0;
 
-	Status("Starting assemble_system.", verbosity, MIN_V);
+	Status("Starting transient_assemble_system.", verbosity, MIN_V);
 
 	Status("Starting initialization of assembly variables.", verbosity, MAX_V);
 	QGauss<dim>  quadrature_formula(2);
@@ -873,94 +878,94 @@ void ThermalElasticityProblem<dim>::transient_assemble_system()
 	endc = dof_handler.end();
 	for (; cell!=endc; ++cell)
 	{
+		// Make sure the cell is owned by this process
+		if (cell->subdomain_id() == this_mpi_process) {
+			fe_values.reinit (cell);
+			cell_matrix = 0;
+			cell_rhs = 0;
+			cell->get_dof_indices (local_dof_indices);
 
-		fe_values.reinit (cell);
-		cell_matrix = 0;
-		cell_rhs = 0;
-		cell->get_dof_indices (local_dof_indices);
-
-		// If transient get the previous solution
-		if (is_transient) {
-			for (unsigned int i=0; i<dofs_per_cell; ++i)
-				local_prev_solution[i] = prev_solution(local_dof_indices[i]);
-		}
-
-		// Get cell's material properties
-		Tensor<2, dim> k;
-
-		bool mat_found = false;
-		for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
-			if (materials[mat_ind].get_id() == cell->material_id()) {
-				k = materials[mat_ind].get_conduction();
-				mat_found = true;
-				break;
+			// If transient get the previous solution
+			if (is_transient) {
+				for (unsigned int i=0; i<dofs_per_cell; ++i)
+					local_prev_solution[i] = prev_solution(local_dof_indices[i]);
 			}
-		Assert(mat_found, ExcMessage("Material not found in assembly."))
 
-		// Loop over the quad points of the cell and assemble the matrix and rhs
-		// See http://www.dealii.org/developer/doxygen/deal.II/group__vector__valued.html end of section "An alternative approach"
-		for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
-		{
-			for (unsigned int i=0; i<dofs_per_cell; ++i)
-			{
-				// Temperature shape function for i
-				const double phi_i_t = fe_values[t_extract].value(i, q_point);
-				const Tensor<1,dim>  grad_phi_i_t = fe_values[t_extract].gradient(i, q_point);
-				// Displacement shape function for i
-				for (unsigned int j=0; j<dofs_per_cell; ++j)
-				{
-					// Temperature shape function for j
-					const double phi_j_t = fe_values[t_extract].value(j, q_point);
-					const Tensor<1,dim>  grad_phi_j_t = fe_values[t_extract].gradient(j, q_point);
+			// Get cell's material properties
+			Tensor<2, dim> k;
 
-					// Only assemble terms corresponding to the thermal block
-					cell_matrix(i,j) += (grad_phi_i_t * k * grad_phi_j_t) * fe_values.JxW (q_point);
-
-					// Add transient terms
-					cell_matrix(i,j) += (1/(tc.get_current_time() - tc.get_prev_time())) * phi_i_t * phi_j_t * fe_values.JxW (q_point);
-					cell_rhs(i) += (1/(tc.get_current_time() - tc.get_prev_time())) * phi_i_t * phi_j_t * local_prev_solution[j] * fe_values.JxW (q_point);
+			bool mat_found = false;
+			for (unsigned int mat_ind = 0; mat_ind < materials.size(); mat_ind++)
+				if (materials[mat_ind].get_id() == cell->material_id()) {
+					k = materials[mat_ind].get_conduction();
+					mat_found = true;
+					break;
 				}
+			Assert(mat_found, ExcMessage("Material not found in assembly."))
 
-				// Only assembly right side terms corresponding to the thermal block
-				cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point))) * fe_values.JxW (q_point);
+			// Loop over the quad points of the cell and assemble the matrix and rhs
+			// See http://www.dealii.org/developer/doxygen/deal.II/group__vector__valued.html end of section "An alternative approach"
+			for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
+			{
+				for (unsigned int i=0; i<dofs_per_cell; ++i)
+				{
+					// Temperature shape function for i
+					const double phi_i_t = fe_values[t_extract].value(i, q_point);
+					const Tensor<1,dim>  grad_phi_i_t = fe_values[t_extract].gradient(i, q_point);
+					// Displacement shape function for i
+					for (unsigned int j=0; j<dofs_per_cell; ++j)
+					{
+						// Temperature shape function for j
+						const double phi_j_t = fe_values[t_extract].value(j, q_point);
+						const Tensor<1,dim>  grad_phi_j_t = fe_values[t_extract].gradient(j, q_point);
+
+						// Only assemble terms corresponding to the thermal block
+						cell_matrix(i,j) += (grad_phi_i_t * k * grad_phi_j_t) * fe_values.JxW (q_point);
+
+						// Add transient terms
+						cell_matrix(i,j) += (1/(tc.get_current_time() - tc.get_prev_time())) * phi_i_t * phi_j_t * fe_values.JxW (q_point);
+						cell_rhs(i) += (1/(tc.get_current_time() - tc.get_prev_time())) * phi_i_t * phi_j_t * local_prev_solution[j] * fe_values.JxW (q_point);
+					}
+
+					// Only assembly right side terms corresponding to the thermal block
+					cell_rhs(i) += (phi_i_t * thermal_rhs.value (fe_values.quadrature_point (q_point))) * fe_values.JxW (q_point);
+				}
 			}
-		}
 
-		// Loop over faces and apply Nuemman BC's
-		for (unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell; face++) {
-			if (cell->face(face)->at_boundary()) {
-				// Apply Nuemman BC for thermal flux
-				for (unsigned int flux_bc_index = 0; flux_bc_index < flux_bcs.size(); flux_bc_index++) {
-					if (cell->face(face)->boundary_indicator() == flux_bcs[flux_bc_index]->get_id()) {
-						fe_face_values.reinit(cell, face);
-						for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
-							double flux_value = flux_bcs[flux_bc_index]->value(fe_face_values.quadrature_point(q_point));
+			// Loop over faces and apply Nuemman BC's
+			for (unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell; face++) {
+				if (cell->face(face)->at_boundary()) {
+					// Apply Nuemman BC for thermal flux
+					for (unsigned int flux_bc_index = 0; flux_bc_index < flux_bcs.size(); flux_bc_index++) {
+						if (cell->face(face)->boundary_indicator() == flux_bcs[flux_bc_index]->get_id()) {
+							fe_face_values.reinit(cell, face);
+							for (unsigned int q_point = 0; q_point<n_face_q_points; ++q_point) {
+								double flux_value = flux_bcs[flux_bc_index]->value(fe_face_values.quadrature_point(q_point));
 
-							for (unsigned int i=0; i<dofs_per_cell; ++i) {
-								const double phi_i_t = fe_values[t_extract].value(i, q_point);
+								for (unsigned int i=0; i<dofs_per_cell; ++i) {
+									const double phi_i_t = fe_values[t_extract].value(i, q_point);
 
-								cell_rhs(i) += phi_i_t * flux_value * fe_face_values.JxW(q_point);
+									cell_rhs(i) += phi_i_t * flux_value * fe_face_values.JxW(q_point);
+								}
 							}
 						}
 					}
 				}
-			}
-		} // looping over faces
+			} // looping over faces
 
-		for (unsigned int i=0; i<dofs_per_cell; ++i)
-		{
-			for (unsigned int j=0; j<dofs_per_cell; ++j)
-				system_matrix.add (local_dof_indices[i],
-							local_dof_indices[j],
-							cell_matrix(i,j));
+			// Usually it is very simple to add the local contributions of the cell to the global matrix, but
+			// in the case of a distributed system it gets pretty complicated to do efficiently.  Luckily, deal
+			// ii has thought of this and has methods to do this more efficiently.  The add operation that requires
+			// comm is not done until the cell loop is done
+			hanging_node_constraints.distribute_local_to_global (cell_matrix, cell_rhs, local_dof_indices, system_matrix, system_rhs);
+		} // If owned
+	} // End cell loop
 
-			system_rhs(local_dof_indices[i]) += cell_rhs(i);
-		}
-	}
+	// Now do the actual operations on the matrix/vector
+	system_matrix.compress(VectorOperation::add);
+	system_rhs.compress(VectorOperation::add);
+
 	Status("Completed the cell loop in assembly.", verbosity, MAX_V);
-
-	hanging_node_constraints.condense(system_matrix);
-	hanging_node_constraints.condense(system_rhs);
 
 	apply_dirchlet_bcs ();
 
@@ -1014,17 +1019,18 @@ void ThermalElasticityProblem<dim>::apply_dirchlet_bcs ()
 template <int dim>
 void ThermalElasticityProblem<dim>::solve ()
 {
-	Status("Starting solve for temperature.", verbosity, MIN_V);
-
 	// We are just using the conjugate gradient method for this problem
 	SolverControl           solver_control (1000, 1e-14);
 	PETScWrappers::SolverCG cg (solver_control);
-	PETScWrappers::PreconditionBlockJacobi preconditioner;
+	//PETScWrappers::PreconditionBlockJacobi preconditioner;
+	PETScWrappers::PreconditionBoomerAMG preconditioner;
 
 	// If the problem is transient, the initial temperature is set and will be taken as the thermal solution at time step 0
 	if (!is_transient || tc.index() > 0) {
+		Status("Starting solve for temperature.", verbosity, MIN_V);
+
 		// First solve for the temperatures
-		preconditioner.initialize (system_matrix.block(0, 0));
+		preconditioner.initialize (system_matrix.block(0, 0), PETScWrappers::PreconditionBoomerAMG::AdditionalData(true));
 		cg.solve(system_matrix.block(0, 0), solution.block(0), system_rhs.block(0), preconditioner);
 		PETScWrappers::Vector localized_temp_solution(solution.block(0));
 		hanging_node_constraints.distribute(localized_temp_solution);
@@ -1041,7 +1047,7 @@ void ThermalElasticityProblem<dim>::solve ()
 
 	Status("Starting solve for displacement.", verbosity, MIN_V);
 
-	preconditioner.initialize(system_matrix.block(1, 1));
+	preconditioner.initialize(system_matrix.block(1, 1), PETScWrappers::PreconditionBoomerAMG::AdditionalData(true));
 	cg.solve(system_matrix.block(1, 1), solution.block(1), system_rhs_temp, preconditioner);
 	PETScWrappers::Vector localized_temp_solution(solution.block(1));
 	hanging_node_constraints.distribute(localized_temp_solution);
